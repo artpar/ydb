@@ -3,6 +3,7 @@ package ydb
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 )
@@ -11,7 +12,7 @@ import (
 // make sure to update message.js in ydb-client when updating these values..
 const (
 	messageUpdate                  = 0
-	messageSub                     = 1
+	messageAwareness               = 1
 	messageConfirmation            = 2
 	messageSubConf                 = 3
 	messageHostUnconfirmedByClient = 4
@@ -30,7 +31,7 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 		return err
 	}
 	switch messageType {
-	case messageSub:
+	case messageAwareness:
 		debug("reading sub message")
 		err = ydb.readSubMessage(m, session)
 	case messageUpdate:
@@ -47,29 +48,21 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 
 func (ydb *Ydb) readSubMessage(m message, session *session) error {
 	subConfBuf := &bytes.Buffer{}
-	writeUvarint(subConfBuf, messageSubConf)
-	nSubs, _ := binary.ReadUvarint(m)
-	writeUvarint(subConfBuf, nSubs)
-	var i uint64
-	for i = 0; i < nSubs; i++ {
-		roomname, _ := readRoomname(m)
-		writeRoomname(subConfBuf, roomname)
-		clientOffset, _ := binary.ReadUvarint(m)
-		clientRsid, _ := binary.ReadUvarint(m)
-		room := ydb.GetYjsRoom(roomname)
-		room.mux.Lock()
-		roomRsid := uint64(room.roomsessionid)
-		roomOffset := uint64(room.offset)
-		room.mux.Unlock()
-		if roomRsid != clientRsid || roomOffset < clientOffset {
-			// in case of mismatch suggest the client to resync. TODO: Init Yjs sync here
-			clientOffset = 0
-			clientRsid = roomRsid
-		}
-		writeUvarint(subConfBuf, clientOffset)
-		writeUvarint(subConfBuf, clientRsid)
-		ydb.subscribeRoom(roomname, session, uint32(clientRsid), uint32(clientOffset))
-	}
+	writeUvarint(subConfBuf, messageAwareness)
+	clientId, _ := binary.ReadUvarint(m)
+	clock, _ := binary.ReadUvarint(m)
+	writeUvarint(subConfBuf, clientId)
+	writeUvarint(subConfBuf, clock)
+
+	jsonString, _ := readString(m)
+	var clientState map[string]interface{}
+	json.Unmarshal([]byte(jsonString), &clientState)
+	println("subs message: " + jsonString)
+
+	//
+	//room := ydb.GetYjsRoom(session.roomname)
+	writeString(subConfBuf, jsonString)
+
 	session.send(subConfBuf.Bytes())
 	return nil
 }
@@ -88,7 +81,7 @@ type subDefinition struct {
 
 func createMessageSubscribe(conf uint64, subs ...subDefinition) []byte {
 	buf := &bytes.Buffer{}
-	writeUvarint(buf, messageSub)
+	writeUvarint(buf, messageAwareness)
 	writeUvarint(buf, conf)
 	writeUvarint(buf, uint64(len(subs)))
 	for _, sub := range subs {

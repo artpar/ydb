@@ -21,7 +21,7 @@ func debugMessageType(m string, buf []byte) {
 	switch buf[0] {
 	case messageConfirmation:
 		mtype = "confirmation"
-	case messageSub:
+	case messageAwareness:
 		mtype = "subscription"
 	case messageSubConf:
 		mtype = "subscription confirmation"

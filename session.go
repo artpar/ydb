@@ -98,11 +98,13 @@ type session struct {
 	// server confirming messages to client
 	clientConfirmation clientConfirmation
 	sessionid          uint64
+	roomname           YjsRoomName
 }
 
-func newSession(sessionid uint64) *session {
+func newSession(sessionid uint64, roomname string) *session {
 	return &session{
 		sessionid: sessionid,
+		roomname:  YjsRoomName(roomname),
 	}
 }
 

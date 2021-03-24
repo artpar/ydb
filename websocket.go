@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -128,6 +129,8 @@ func (wsConn *wsConn) writePump() {
 func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("new client..")
+		urlParts := strings.Split(r.URL.Path, "/")
+		roomname := urlParts[len(urlParts)-1]
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			fmt.Printf("error: error upgrading client %s", err.Error())
@@ -136,12 +139,15 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 		var sessionid uint64 // TODO: get the sessionid from http headers
 		var session *session
 		if sessionid == 0 {
-			session = ydbInstance.createSession()
+			session = ydbInstance.createSession(roomname)
 		} else {
 			session = ydbInstance.getSession(sessionid)
 		}
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.add(wsConn)
+
+		go ydbInstance.subscribeRoom(session, uint32(0), uint32(0))
+
 		go wsConn.readPump()
 		go wsConn.writePump()
 	}

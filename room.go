@@ -100,8 +100,8 @@ func (room *room) hasSession(session *session) bool {
 	return false
 }
 
-func (ydb *Ydb) subscribeRoom(roomname YjsRoomName, session *session, roomsessionid uint32, offset uint32) {
-	ydb.modifyRoom(roomname, func(room *room) bool {
+func (ydb *Ydb) subscribeRoom(session *session, roomsessionid uint32, offset uint32) {
+	ydb.modifyRoom(session.roomname, func(room *room) bool {
 		if !room.hasSession(session) {
 			if room.offset != offset {
 				room.pendingSubs = append(room.pendingSubs, pendingSub{session, offset})

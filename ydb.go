@@ -76,13 +76,13 @@ func (ydb *Ydb) getSession(sessionid uint64) *session {
 	return ydb.sessions[sessionid]
 }
 
-func (ydb *Ydb) createSession() (s *session) {
+func (ydb *Ydb) createSession(roomname string) (s *session) {
 	ydb.sessionsMux.Lock()
 	sessionid := ydb.genUint64()
 	if _, ok := ydb.sessions[sessionid]; ok {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
-	s = newSession(sessionid)
+	s = newSession(sessionid, roomname)
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s
