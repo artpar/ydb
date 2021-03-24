@@ -38,7 +38,7 @@ func newClient() *client {
 func (client *client) readMessage(message []byte) {
 	buf := bytes.NewBuffer(message)
 	switch messageType, _ := buf.ReadByte(); messageType {
-	case messageUpdate:
+	case messageSync:
 		confirmation, _ := binary.ReadUvarint(buf)
 		roomname, _ := readRoomname(buf)
 		bytes, _ := readPayload(buf)

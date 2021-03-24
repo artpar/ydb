@@ -25,7 +25,7 @@ func debugMessageType(m string, buf []byte) {
 		mtype = "subscription"
 	case messageSubConf:
 		mtype = "subscription confirmation"
-	case messageUpdate:
+	case messageSync:
 		mtype = "update"
 	case messageHostUnconfirmedByClient:
 		mtype = "host-unconfirmed-by-client"

@@ -11,7 +11,7 @@ import (
 // message type constants
 // make sure to update message.js in ydb-client when updating these values..
 const (
-	messageUpdate                  = 0
+	messageSync                    = 0
 	messageAwareness               = 1
 	messageConfirmation            = 2
 	messageSubConf                 = 3
@@ -34,7 +34,7 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 	case messageAwareness:
 		debug("reading sub message")
 		err = ydb.readSubMessage(m, session)
-	case messageUpdate:
+	case messageSync:
 		debug("reading update message")
 		err = ydb.readUpdateMessage(m, session)
 	case messageConfirmation:
@@ -100,7 +100,7 @@ func createMessageSubscribe(conf uint64, subs ...subDefinition) []byte {
 //
 func createMessageUpdate(roomname YjsRoomName, offsetOrConf uint64, data []byte) []byte {
 	buf := &bytes.Buffer{}
-	writeUvarint(buf, messageUpdate)
+	writeUvarint(buf, messageSync)
 	writeUvarint(buf, offsetOrConf)
 	writeRoomname(buf, roomname)
 	writePayload(buf, data)
@@ -132,10 +132,10 @@ func createMessageConfirmation(conf uint64) []byte {
 
 func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 	confirmation, _ := binary.ReadUvarint(m)
-	roomname, _ := readRoomname(m)
+	//roomname, _ := readRoomname(m)
 	bs, _ := readPayload(m)
 	// send the rest of message
-	ydb.updateRoom(roomname, session, confirmation, bs)
+	ydb.updateRoom(session.roomname, session, confirmation, bs)
 	return nil
 }
 
