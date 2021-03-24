@@ -10,12 +10,10 @@ import (
 	"time"
 )
 
-var ydb Ydb
-
 // Ydb maintains rooms and connections
 type Ydb struct {
 	roomsMux sync.RWMutex
-	rooms    map[roomname]*room
+	rooms    map[YjsRoomName]*room
 	// TODO: use guid instead of uint64
 	sessionsMux sync.Mutex
 	sessions    map[uint64]*session
@@ -38,18 +36,19 @@ func (ydb *Ydb) genUint64() uint64 {
 	return n
 }
 
-func InitYdb(dir string) {
+func InitYdb(dir string) *Ydb {
 	// remember to update UnsafeClearAllYdbContent when updating here
-	ydb = Ydb{
-		rooms:    make(map[roomname]*room, 1000),
+	ydb := Ydb{
+		rooms:    make(map[YjsRoomName]*room, 1000),
 		sessions: make(map[uint64]*session),
 		fswriter: newFSWriter(dir, 1000, 10), // TODO: have command line arguments for this
 		seed:     rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+	return &ydb
 }
 
-// getRoom from the global ydb instance. safe for parallel access.
-func getRoom(name roomname) *room {
+// GetYjsRoom from the global ydb instance. safe for parallel access.
+func (ydb *Ydb) GetYjsRoom(name YjsRoomName) *room {
 	ydb.roomsMux.RLock()
 	r := ydb.rooms[name]
 	ydb.roomsMux.RUnlock()
@@ -57,7 +56,7 @@ func getRoom(name roomname) *room {
 		ydb.roomsMux.Lock()
 		r = ydb.rooms[name]
 		if r == nil {
-			r = newRoom()
+			r = ydb.newRoom()
 			ydb.rooms[name] = r
 			r.mux.Lock()
 			ydb.roomsMux.Unlock()
@@ -130,10 +129,10 @@ func removeFSWriteDirContent(dir string) error {
 // Clear all content in Ydb (files, sessions, rooms, ..).
 // Unsafe for production, only use for testing!
 // only works if dir is tmp
-func UnsafeClearAllYdbContent() {
+func (ydb *Ydb) UnsafeClearAllYdbContent() {
 	dir := ydb.fswriter.dir
 	debug("Clear Ydb content")
-	ydb.rooms = make(map[roomname]*room, 1000)
+	ydb.rooms = make(map[YjsRoomName]*room, 1000)
 	ydb.sessions = make(map[uint64]*session)
 	removeFSWriteDirContent(dir)
 }

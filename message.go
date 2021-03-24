@@ -24,7 +24,7 @@ type message interface {
 	Read(p []byte) (int, error)
 }
 
-func readMessage(m message, session *session) (err error) {
+func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 	messageType, err := binary.ReadUvarint(m)
 	if err != nil {
 		return err
@@ -32,10 +32,10 @@ func readMessage(m message, session *session) (err error) {
 	switch messageType {
 	case messageSub:
 		debug("reading sub message")
-		err = readSubMessage(m, session)
+		err = ydb.readSubMessage(m, session)
 	case messageUpdate:
 		debug("reading update message")
-		err = readUpdateMessage(m, session)
+		err = ydb.readUpdateMessage(m, session)
 	case messageConfirmation:
 		debug("reading conf message")
 		err = readConfirmationMessage(m, session)
@@ -45,7 +45,7 @@ func readMessage(m message, session *session) (err error) {
 	return err
 }
 
-func readSubMessage(m message, session *session) error {
+func (ydb *Ydb) readSubMessage(m message, session *session) error {
 	subConfBuf := &bytes.Buffer{}
 	writeUvarint(subConfBuf, messageSubConf)
 	nSubs, _ := binary.ReadUvarint(m)
@@ -56,7 +56,7 @@ func readSubMessage(m message, session *session) error {
 		writeRoomname(subConfBuf, roomname)
 		clientOffset, _ := binary.ReadUvarint(m)
 		clientRsid, _ := binary.ReadUvarint(m)
-		room := getRoom(roomname)
+		room := ydb.GetYjsRoom(roomname)
 		room.mux.Lock()
 		roomRsid := uint64(room.roomsessionid)
 		roomOffset := uint64(room.offset)
@@ -68,7 +68,7 @@ func readSubMessage(m message, session *session) error {
 		}
 		writeUvarint(subConfBuf, clientOffset)
 		writeUvarint(subConfBuf, clientRsid)
-		subscribeRoom(roomname, session, uint32(clientRsid), uint32(clientOffset))
+		ydb.subscribeRoom(roomname, session, uint32(clientRsid), uint32(clientOffset))
 	}
 	session.send(subConfBuf.Bytes())
 	return nil
@@ -81,7 +81,7 @@ func readConfirmationMessage(m message, session *session) (err error) {
 }
 
 type subDefinition struct {
-	roomname roomname
+	roomname YjsRoomName
 	offset   uint64
 	rsid     uint64
 }
@@ -100,7 +100,7 @@ func createMessageSubscribe(conf uint64, subs ...subDefinition) []byte {
 }
 
 //
-func createMessageUpdate(roomname roomname, offsetOrConf uint64, data []byte) []byte {
+func createMessageUpdate(roomname YjsRoomName, offsetOrConf uint64, data []byte) []byte {
 	buf := &bytes.Buffer{}
 	writeUvarint(buf, messageUpdate)
 	writeUvarint(buf, offsetOrConf)
@@ -117,7 +117,7 @@ func createMessageHostUnconfirmedByClient(clientConf uint64, offset uint64) []by
 	return buf.Bytes()
 }
 
-func createMessageConfirmedByHost(roomname roomname, offset uint64) []byte {
+func createMessageConfirmedByHost(roomname YjsRoomName, offset uint64) []byte {
 	buf := &bytes.Buffer{}
 	writeUvarint(buf, messageConfirmedByHost)
 	writeRoomname(buf, roomname)
@@ -132,12 +132,12 @@ func createMessageConfirmation(conf uint64) []byte {
 	return buf.Bytes()
 }
 
-func readUpdateMessage(m message, session *session) error {
+func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 	confirmation, _ := binary.ReadUvarint(m)
 	roomname, _ := readRoomname(m)
 	bs, _ := readPayload(m)
 	// send the rest of message
-	updateRoom(roomname, session, confirmation, bs)
+	ydb.updateRoom(roomname, session, confirmation, bs)
 	return nil
 }
 
@@ -146,9 +146,9 @@ func readString(m message) (string, error) {
 	return string(bs), err
 }
 
-func readRoomname(m message) (roomname, error) {
+func readRoomname(m message) (YjsRoomName, error) {
 	name, err := readString(m)
-	return roomname(name), err
+	return YjsRoomName(name), err
 }
 
 func readPayload(m message) ([]byte, error) {
@@ -169,7 +169,7 @@ func writeString(buf io.Writer, str string) error {
 	return writePayload(buf, []byte(str))
 }
 
-func writeRoomname(buf io.Writer, roomname roomname) error {
+func writeRoomname(buf io.Writer, roomname YjsRoomName) error {
 	return writeString(buf, string(roomname))
 }
 

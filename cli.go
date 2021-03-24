@@ -42,8 +42,8 @@ func cliParseStart(args []string) {
 		fmt.Fprintln(os.Stderr, "Try 'ydb start --help' for more information")
 		os.Exit(1)
 	}
-	InitYdb(*dir)
-	setupWebsocketsListener(":8899")
+	ydbInstance := InitYdb(*dir)
+	setupWebsocketsListener(":8899", ydbInstance)
 }
 
 func main() {

@@ -11,7 +11,7 @@ const stdPerms = 0600
 
 type roomUpdate struct {
 	room     *room
-	roomname roomname
+	roomname YjsRoomName
 }
 
 type fswriter struct {
@@ -19,7 +19,7 @@ type fswriter struct {
 	dir   string
 }
 
-func (fswriter *fswriter) readRoomSize(roomname roomname) uint32 {
+func (fswriter *fswriter) readRoomSize(roomname YjsRoomName) uint32 {
 	fi, err := os.Stat(fmt.Sprintf("%s/%s", fswriter.dir, string(roomname)))
 	switch err.(type) {
 	case nil:
@@ -31,7 +31,7 @@ func (fswriter *fswriter) readRoomSize(roomname roomname) uint32 {
 	return uint32(fi.Size())
 }
 
-func (fswriter *fswriter) registerRoomUpdate(room *room, roomname roomname) {
+func (fswriter *fswriter) registerRoomUpdate(room *room, roomname YjsRoomName) {
 	fswriter.queue <- roomUpdate{room, roomname}
 }
 

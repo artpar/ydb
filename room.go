@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-type roomname string
+type YjsRoomName string
 
 type pendingWrite struct {
 	data    []byte
@@ -23,7 +23,7 @@ type room struct {
 	offset        uint32
 }
 
-func newRoom() *room {
+func (ydb *Ydb) newRoom() *room {
 	return &room{
 		subs:          nil,
 		roomsessionid: ydb.genUint32(),
@@ -31,8 +31,8 @@ func newRoom() *room {
 	}
 }
 
-func modifyRoom(roomname roomname, f func(room *room) (modified bool)) {
-	room := getRoom(roomname)
+func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool)) {
+	room := ydb.GetYjsRoom(roomname)
 	var register bool
 	room.mux.Lock()
 	// try to clean up subs
@@ -66,9 +66,9 @@ func modifyRoom(roomname roomname, f func(room *room) (modified bool)) {
 
 // update in-memory buffer of writable data. Registers in fswriter if new data is available.
 // Writes to buffer until fswriter owns the buffer.
-func updateRoom(roomname roomname, session *session, clientConf uint64, bs []byte) {
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, clientConf uint64, bs []byte) {
 	debug("trying to update room")
-	modifyRoom(roomname, func(room *room) bool {
+	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")
 		room.pendingWrites = append(room.pendingWrites, bs...)
 		room.offset += uint32(len(bs))
@@ -100,15 +100,15 @@ func (room *room) hasSession(session *session) bool {
 	return false
 }
 
-func subscribeRoom(roomname roomname, session *session, roomsessionid uint32, offset uint32) {
-	modifyRoom(roomname, func(room *room) bool {
+func (ydb *Ydb) subscribeRoom(roomname YjsRoomName, session *session, roomsessionid uint32, offset uint32) {
+	ydb.modifyRoom(roomname, func(room *room) bool {
 		if !room.hasSession(session) {
 			if room.offset != offset {
 				room.pendingSubs = append(room.pendingSubs, pendingSub{session, offset})
 				return true
 			}
 			room.subs = append(room.subs, session)
-			// session.sendConfirmedByHost(roomname, uint64(offset))
+			// session.sendConfirmedByHost(YjsRoomName, uint64(offset))
 		}
 		return false // whether room data needs to access fswriter
 	})

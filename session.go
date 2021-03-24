@@ -16,7 +16,7 @@ type serverConfirmation struct {
 	// next expected confirmation from client
 	nextClient uint64
 	// rooms changed since last confirmation.
-	roomsChanged map[roomname]uint64
+	roomsChanged map[YjsRoomName]uint64
 }
 
 func (serverConfirmation *serverConfirmation) createConfirmation() uint64 {
@@ -31,7 +31,7 @@ func (serverConfirmation *serverConfirmation) clientConfirmed(confirmed uint64) 
 		serverConfirmation.nextClient = confirmed + 1
 		// recreate a new roomsChanged map to assure that memory does not grow
 		roomsChanged := serverConfirmation.roomsChanged
-		serverConfirmation.roomsChanged = make(map[roomname]uint64, 1)
+		serverConfirmation.roomsChanged = make(map[YjsRoomName]uint64, 1)
 		// re-insert all rooms that are not yet confirmed
 		for roomname, n := range roomsChanged {
 			if n > confirmed {
@@ -106,7 +106,7 @@ func newSession(sessionid uint64) *session {
 	}
 }
 
-func (s *session) sendConfirmedByHost(roomname roomname, offset uint64) {
+func (s *session) sendConfirmedByHost(roomname YjsRoomName, offset uint64) {
 	s.send(createMessageConfirmedByHost(roomname, offset))
 	/* TODO: use the following for UnconfirmedHostByClient
 	s.mux.Lock()
@@ -134,7 +134,7 @@ func (s *session) send(bs []byte) {
 	s.mux.Unlock()
 }
 
-func (s *session) sendUpdate(roomname roomname, data []byte, offset uint64) {
+func (s *session) sendUpdate(roomname YjsRoomName, data []byte, offset uint64) {
 	if len(data) > 0 {
 		s.send(createMessageUpdate(roomname, offset, data))
 	}
@@ -153,7 +153,7 @@ func (s *session) add(conn conn) {
 	s.mux.Unlock()
 }
 
-func (s *session) removeConn(c conn) {
+func (s *session) removeConn(c conn, ydb *Ydb) {
 	s.mux.Lock()
 	var newConns []conn
 	for _, conn := range s.conns {

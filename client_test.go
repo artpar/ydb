@@ -17,7 +17,7 @@ func createTestClient() (client *client) {
 }
 
 func TestClientSubscribeUpdate(t *testing.T) {
-	createYdbTest(func() {
+	createYdbTest(func(ydbInstance *Ydb) {
 		p := 247
 		runTest := func(seed int, wg *sync.WaitGroup) {
 			client := createTestClient()

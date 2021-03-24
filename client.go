@@ -24,14 +24,14 @@ type client struct {
 	unconfirmed              map[uint64][]byte
 	nextExpectedConfirmation uint64
 	nextConfirmationNumber   uint64
-	rooms                    map[roomname]roomstate
+	rooms                    map[YjsRoomName]roomstate
 }
 
 func newClient() *client {
 	return &client{
 		send:        make(chan []byte, 10),
 		unconfirmed: make(map[uint64][]byte),
-		rooms:       make(map[roomname]roomstate),
+		rooms:       make(map[YjsRoomName]roomstate),
 	}
 }
 
@@ -133,7 +133,7 @@ func (client *client) Subscribe(subs ...subDefinition) {
 	client.send <- m
 }
 
-func (client *client) UpdateRoom(roomname roomname, data []byte) {
+func (client *client) UpdateRoom(roomname YjsRoomName, data []byte) {
 	conf := client.nextConfirmationNumber
 	m := createMessageUpdate(roomname, conf, data)
 	roomstate := client.rooms[roomname]

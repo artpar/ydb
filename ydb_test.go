@@ -9,27 +9,27 @@ import (
 	"time"
 )
 
-func createYdbTest(f func()) {
+func createYdbTest(f func(ydbInstance *Ydb)) {
 	dir := "_test"
 	os.RemoveAll(dir)
-	InitYdb(dir)
-	go setupWebsocketsListener(":9999")
+	ydbInstance := InitYdb(dir)
+	go setupWebsocketsListener(":9999", ydbInstance)
 	time.Sleep(time.Second)
-	f()
+	f(ydbInstance)
 	os.RemoveAll(dir)
 }
 
-// testGetRoom test if getRoom is safe for parallel access
+// testGetRoom test if GetYjsRoom is safe for parallel access
 func TestGetRoom(t *testing.T) {
-	createYdbTest(func() {
+	createYdbTest(func(ydbInstance *Ydb) {
 		runTest := func(seed int, wg *sync.WaitGroup) {
 			src := rand.NewSource(int64(seed))
 			r := rand.New(src)
 			var numOfTests uint64 = 10000
 			var i uint64
 			for ; i < numOfTests; i++ {
-				roomname := roomname(strconv.FormatUint(r.Uint64()%numOfTests, 10))
-				getRoom(roomname)
+				roomname := YjsRoomName(strconv.FormatUint(r.Uint64()%numOfTests, 10))
+				ydbInstance.GetYjsRoom(roomname)
 			}
 			wg.Done()
 		}
