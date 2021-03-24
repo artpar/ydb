@@ -13,7 +13,7 @@ func exitBecause(messages ...string) {
 }
 
 func debug(s string) {
-	fmt.Println(s)
+	//fmt.Println(s)
 }
 
 func debugMessageType(m string, buf []byte) {
