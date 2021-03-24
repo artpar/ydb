@@ -63,7 +63,7 @@ func (fswriter *fswriter) startWriteTask() {
 				confirmedOffset := uint64(sub.offset) + uint64(len(data))
 				// TODO: combine sub and update here
 				sub.session.sendUpdate(roomname, data, confirmedOffset)
-				sub.session.sendConfirmedByHost(roomname, confirmedOffset)
+				//sub.session.sendConfirmedByHost(roomname, confirmedOffset)
 				room.subs = append(room.subs, sub.session)
 				f.Close()
 			}
@@ -85,9 +85,9 @@ func (fswriter *fswriter) startWriteTask() {
 			f.Close()
 			debug("fswriter: closed file")
 			// confirm after we can assure that data has been written
-			for _, sub := range room.subs {
-				sub.sendConfirmedByHost(roomname, uint64(room.offset))
-			}
+			//for _, sub := range room.subs {
+			//	sub.sendConfirmedByHost(roomname, uint64(room.offset))
+			//}
 			debug("fswriter: left dataAvailable - sent confirmedByHost")
 		}
 		room.mux.Unlock()

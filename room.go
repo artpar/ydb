@@ -79,7 +79,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, clientConf ui
 			}
 		}
 		debug("updating room .. wrote update to all sessions but sender")
-		session.sendHostUnconfirmedByClient(clientConf, uint64(room.offset))
+		//session.sendHostUnconfirmedByClient(clientConf, uint64(room.offset))
 		debug("updating room .. sent conf to client")
 		return true
 	})
