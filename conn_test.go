@@ -1,4 +1,4 @@
-package main
+package ydb
 
 // testConn does not support reconnection
 type testConn struct {

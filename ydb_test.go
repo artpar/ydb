@@ -1,4 +1,4 @@
-package main
+package ydb
 
 import (
 	"math/rand"
