@@ -51,12 +51,17 @@ func (ydb *Ydb) readSubMessage(m message, session *session) error {
 	writeUvarint(subConfBuf, messageAwareness)
 	clientId, _ := binary.ReadUvarint(m)
 	clock, _ := binary.ReadUvarint(m)
+	var1, _ := binary.ReadUvarint(m)
+	var2, _ := binary.ReadUvarint(m)
 	writeUvarint(subConfBuf, clientId)
 	writeUvarint(subConfBuf, clock)
+	writeUvarint(subConfBuf, var1)
+	writeUvarint(subConfBuf, var2)
 
 	jsonString, _ := readString(m)
 	var clientState map[string]interface{}
 	json.Unmarshal([]byte(jsonString), &clientState)
+	fmt.Printf("var 1 : %v, var2: %v: ", var1, var2)
 	println("subs message: " + jsonString)
 
 	//
