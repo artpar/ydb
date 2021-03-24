@@ -102,7 +102,7 @@ func createMessageUpdate(roomname YjsRoomName, offsetOrConf uint64, data []byte)
 	buf := &bytes.Buffer{}
 	writeUvarint(buf, messageSync)
 	writeUvarint(buf, offsetOrConf)
-	writeRoomname(buf, roomname)
+	//writeRoomname(buf, roomname)
 	writePayload(buf, data)
 	return buf.Bytes()
 }
@@ -118,7 +118,7 @@ func createMessageHostUnconfirmedByClient(clientConf uint64, offset uint64) []by
 func createMessageConfirmedByHost(roomname YjsRoomName, offset uint64) []byte {
 	buf := &bytes.Buffer{}
 	writeUvarint(buf, messageConfirmedByHost)
-	writeRoomname(buf, roomname)
+	//writeRoomname(buf, roomname)
 	writeUvarint(buf, offset)
 	return buf.Bytes()
 }
