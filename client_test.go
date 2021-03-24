@@ -48,7 +48,7 @@ func TestClientSubscribeUpdate(t *testing.T) {
 func TestClientSubscribeUpdate(t *testing.T) {
 	dir := "_ydb_conn_test"
 	os.RemoveAll(dir)
-	initYdb(dir)
+	InitYdb(dir)
 	runSocketListener(":9999")
 	client1 := createTestClient()
 	client2 := createTestClient()
@@ -65,7 +65,7 @@ func TestClientSubscribeUpdate(t *testing.T) {
 func initTestClients(numberOfClients int, f func(clients []*client)) {
 	dir := "_ydb_conn_test"
 	os.RemoveAll(dir)
-	initYdb(dir)
+	InitYdb(dir)
 	setupWebsocketsListener(":9999")
 	conns := make([]*client, numberOfClients)
 	for i := 0; i < numberOfClients; i++ {

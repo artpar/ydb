@@ -12,7 +12,7 @@ import (
 func createYdbTest(f func()) {
 	dir := "_test"
 	os.RemoveAll(dir)
-	initYdb(dir)
+	InitYdb(dir)
 	go setupWebsocketsListener(":9999")
 	time.Sleep(time.Second)
 	f()

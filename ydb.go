@@ -38,8 +38,8 @@ func (ydb *Ydb) genUint64() uint64 {
 	return n
 }
 
-func initYdb(dir string) {
-	// remember to update unsafeClearAllYdbContent when updating here
+func InitYdb(dir string) {
+	// remember to update UnsafeClearAllYdbContent when updating here
 	ydb = Ydb{
 		rooms:    make(map[roomname]*room, 1000),
 		sessions: make(map[uint64]*session),
@@ -130,7 +130,7 @@ func removeFSWriteDirContent(dir string) error {
 // Clear all content in Ydb (files, sessions, rooms, ..).
 // Unsafe for production, only use for testing!
 // only works if dir is tmp
-func unsafeClearAllYdbContent() {
+func UnsafeClearAllYdbContent() {
 	dir := ydb.fswriter.dir
 	debug("Clear Ydb content")
 	ydb.rooms = make(map[roomname]*room, 1000)

@@ -123,32 +123,34 @@ func (wsConn *wsConn) writePump() {
 	}
 }
 
+func YDBHandleWebsocketConnection(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("new client..")
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Printf("error: error upgrading client %s", err.Error())
+		return
+	}
+	var sessionid uint64 // TODO: get the sessionid from http headers
+	var session *session
+	if sessionid == 0 {
+		session = ydb.createSession()
+	} else {
+		session = ydb.getSession(sessionid)
+	}
+	wsConn := newWsConn(session, conn)
+	session.add(wsConn)
+	go wsConn.readPump()
+	go wsConn.writePump()
+}
+
 func setupWebsocketsListener(addr string) {
 	// TODO: only set this if in testing mode!
 	http.HandleFunc("/clearAll", func(w http.ResponseWriter, r *http.Request) {
-		unsafeClearAllYdbContent()
+		UnsafeClearAllYdbContent()
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "OK")
 	})
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("new client..")
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			fmt.Printf("error: error upgrading client %s", err.Error())
-			return
-		}
-		var sessionid uint64 // TODO: get the sessionid from http headers
-		var session *session
-		if sessionid == 0 {
-			session = ydb.createSession()
-		} else {
-			session = ydb.getSession(sessionid)
-		}
-		wsConn := newWsConn(session, conn)
-		session.add(wsConn)
-		go wsConn.readPump()
-		go wsConn.writePump()
-	})
+	http.HandleFunc("/ws", YDBHandleWebsocketConnection)
 	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		exitBecause(err.Error())
