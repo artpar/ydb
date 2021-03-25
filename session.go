@@ -138,7 +138,7 @@ func (s *session) send(bs []byte) {
 
 func (s *session) sendUpdate(roomname YjsRoomName, data []byte, offset uint64) {
 	if len(data) > 0 {
-		s.send(createMessageUpdate(roomname, offset, data))
+		s.send(data)
 	}
 }
 

@@ -60,9 +60,9 @@ func (fswriter *fswriter) startWriteTask() {
 				}
 				data, _ := ioutil.ReadAll(f)
 				data = append(data, pendingWrites...)
-				confirmedOffset := uint64(sub.offset) + uint64(len(data))
+				//confirmedOffset := uint64(sub.offset) + uint64(len(data))
 				// TODO: combine sub and update here
-				sub.session.sendUpdate(roomname, data, confirmedOffset)
+				//sub.session.sendUpdate(roomname, data, confirmedOffset)
 				//sub.session.sendConfirmedByHost(roomname, confirmedOffset)
 				room.subs = append(room.subs, sub.session)
 				f.Close()
