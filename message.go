@@ -62,7 +62,7 @@ func (ydb *Ydb) readSubMessage(m message, session *session) error {
 	var clientState map[string]interface{}
 	json.Unmarshal([]byte(jsonString), &clientState)
 	fmt.Printf("var 1 : %v, var2: %v: ", var1, var2)
-	println("subs message: " + jsonString)
+	//println("subs message: " + jsonString)
 
 	//
 	//room := ydb.GetYjsRoom(session.roomname)

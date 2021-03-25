@@ -70,7 +70,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 	debug("trying to update room")
 	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")
-		fmt.Printf("Payload: %v", bs)
+		//fmt.Printf("Payload: %v", bs)
 		room.pendingWrites = append(room.pendingWrites, bs...)
 		room.offset += uint32(len(bs))
 		debug(fmt.Sprintf("updating room .. number of subs: %d", len(room.subs)))
