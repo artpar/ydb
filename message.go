@@ -209,11 +209,13 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 
 	switch messageType {
 	case messageYjsSyncStep1:
+		payload, _ := readPayload(m)
 		writeUvarint(write, messageYjsSyncStep1)
-		writePayload(write, readStateVector(m))
+		writePayload(write, payload)
 	case messageYjsSyncStep2:
+		payload, _ := readPayload(m)
 		writeUvarint(write, messageYjsSyncStep2)
-		writePayload(write, readStateVector(m))
+		writePayload(write, payload)
 
 	case messageYjsUpdate:
 		payload, _ := readPayload(m)
