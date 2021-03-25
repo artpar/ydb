@@ -66,7 +66,7 @@ func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bo
 
 // update in-memory buffer of writable data. Registers in fswriter if new data is available.
 // Writes to buffer until fswriter owns the buffer.
-func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, clientConf uint64, bs []byte) {
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 	debug("trying to update room")
 	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")

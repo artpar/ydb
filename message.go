@@ -130,12 +130,96 @@ func createMessageConfirmation(conf uint64) []byte {
 	return buf.Bytes()
 }
 
+const messageYjsSyncStep1 = 0
+const messageYjsSyncStep2 = 1
+const messageYjsUpdate = 2
+
+//
+//func (s *session) encodeStateAsUpdateV2(m message) []byte {
+//	targetStateVector := readStateVector(m)
+//
+//	encoder := &bytes.Buffer{}
+//	s.writeStateAsUpdate(encoder, targetStateVector)
+//}
+//
+//type ystore struct {
+//
+//}
+//
+//type ydocument  struct {
+//	store ystore
+//}
+
+//func (s *session) writeStateAsUpdate(encoder *bytes.Buffer, targetStateVector map[uint64]uint64) {
+//
+//	s.writeClientsStructs(encoder, targetStateVector)
+//	s.writeDeleteSet(encoder, s.createDeleteSetFromStructStore())
+//
+//}
+
+//func (store *session) writeClientsStructs(encoder *bytes.Buffer, _sm map[uint64]uint64) {
+//
+//	sm := make(map[uint64]uint64)
+//
+//	for client, clock := range _sm {
+//		if session.getState(store, client) > clock {
+//			sm[client] = clock
+//		}
+//	}
+//
+//}
+
+//func (s *session) getState(client uint64) uint64 {
+//
+//	const structs = s.clients.get(client)
+//	if (structs === undefined) {
+//		return 0
+//	}
+//	const lastStruct = structs[structs.length - 1]
+//	return lastStruct.id.clock + lastStruct.length
+//
+//}
+
+//func (s *session) getStateVector() {
+//
+//}
+
+func readStateVector(m message) []byte {
+	ssLength, _ := binary.ReadUvarint(m)
+	//ss := make([]uint64, 0)
+	encoder := &bytes.Buffer{}
+	for i := uint64(0); i < ssLength; i++ {
+		client, _ := binary.ReadUvarint(m)
+		clock, _ := binary.ReadUvarint(m)
+		//ss[client] = clock
+		writeUvarint(encoder, client)
+		writeUvarint(encoder, clock)
+	}
+	return encoder.Bytes()
+}
+
 func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
-	confirmation, _ := binary.ReadUvarint(m)
+
+	messageType, _ := binary.ReadUvarint(m)
 	//roomname, _ := readRoomname(m)
-	bs, _ := readPayload(m)
+
+	write := &bytes.Buffer{}
+	switch messageType {
+	case messageYjsSyncStep1:
+		writeUvarint(write, messageYjsSyncStep2)
+		writePayload(write, readStateVector(m))
+	case messageYjsSyncStep2:
+		writeUvarint(write, messageYjsSyncStep1)
+		writePayload(write, readStateVector(m))
+
+	case messageYjsUpdate:
+		payload, _ := readPayload(m)
+		writePayload(write, payload)
+
+	}
+
 	// send the rest of message
-	ydb.updateRoom(session.roomname, session, confirmation, bs)
+	ydb.updateRoom(session.roomname, session, write.Bytes())
 	return nil
 }
 

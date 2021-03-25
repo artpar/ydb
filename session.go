@@ -176,3 +176,12 @@ func (s *session) removeConn(c conn, ydb *Ydb) {
 	}
 	s.mux.Unlock()
 }
+
+//
+//func (s *session) createDeleteSetFromStructStore() interface{} {
+//
+//}
+//
+//func (s *session) writeDeleteSet(encoder *bytes.Buffer, store interface{}) {
+//
+//}
