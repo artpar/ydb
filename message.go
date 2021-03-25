@@ -206,14 +206,15 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 	write := &bytes.Buffer{}
 	switch messageType {
 	case messageYjsSyncStep1:
-		writeUvarint(write, messageYjsSyncStep2)
+		writeUvarint(write, messageYjsSyncStep1)
 		writePayload(write, readStateVector(m))
 	case messageYjsSyncStep2:
-		writeUvarint(write, messageYjsSyncStep1)
+		writeUvarint(write, messageYjsSyncStep2)
 		writePayload(write, readStateVector(m))
 
 	case messageYjsUpdate:
 		payload, _ := readPayload(m)
+		writeUvarint(write, messageYjsUpdate)
 		writePayload(write, payload)
 
 	}
