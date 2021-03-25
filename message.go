@@ -204,6 +204,9 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 	//roomname, _ := readRoomname(m)
 
 	write := &bytes.Buffer{}
+
+	writeUvarint(write, messageSync)
+
 	switch messageType {
 	case messageYjsSyncStep1:
 		writeUvarint(write, messageYjsSyncStep1)
