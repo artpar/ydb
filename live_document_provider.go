@@ -2,7 +2,6 @@ package ydb
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -23,11 +22,6 @@ type Document struct {
 
 func (d Document) SetInitialContent(initialContents []byte) {
 
-	b, _ := base64.StdEncoding.DecodeString("AAKkAQEBv4Ls0wwAhNzm1YwDlgWRAQ==")
-	buf := bytes.Buffer{}
-	buf.Write(b)
-	buf.Write(initialContents)
-
 	f, err := os.OpenFile(d.writepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
 	if err != nil {
 		panic(err)
@@ -35,7 +29,7 @@ func (d Document) SetInitialContent(initialContents []byte) {
 	f.Truncate(0)
 	f.Seek(0, 0)
 	debug("fswriter: opened file")
-	if _, err = f.Write(buf.Bytes()); err != nil {
+	if _, err = f.Write(initialContents); err != nil {
 		panic(err)
 	}
 	debug("fswriter: writing file")
