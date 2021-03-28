@@ -15,8 +15,23 @@ type DocumentProvider interface {
 }
 
 type Document struct {
-	contents []byte
-	name     YjsRoomName
+	contents  []byte
+	name      YjsRoomName
+	writepath string
+}
+
+func (d Document) SetInitialContent(initialContents []byte) {
+
+	f, err := os.OpenFile(d.writepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
+	if err != nil {
+		panic(err)
+	}
+	debug("fswriter: opened file")
+	if _, err = f.Write(initialContents); err != nil {
+		panic(err)
+	}
+	debug("fswriter: writing file")
+	f.Close()
 }
 
 type DiskDocumentProvider struct {
@@ -82,20 +97,14 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 
 	initialContents := ddp.dl.GetDocumentInitialContent(string(name))
 
-	f, err := os.OpenFile(writeFilepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
-	if err != nil {
-		panic(err)
+	document := Document{
+		writepath: writeFilepath,
+		name:      name,
 	}
-	debug("fswriter: opened file")
-	if _, err = f.Write(initialContents); err != nil {
-		panic(err)
-	}
-	debug("fswriter: writing file")
-	f.Close()
 
-	return Document{
-		name: name,
-	}
+	document.SetInitialContent(initialContents)
+
+	return document
 }
 
 func (ddp *DiskDocumentProvider) GetDocument(documentName YjsRoomName) *Document {
