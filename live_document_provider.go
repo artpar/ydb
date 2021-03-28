@@ -95,14 +95,12 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 
 	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, os.PathSeparator, name)
 
-	initialContents := ddp.dl.GetDocumentInitialContent(string(name))
-
 	document := Document{
 		writepath: writeFilepath,
 		name:      name,
 	}
 
-	document.SetInitialContent(initialContents)
+	document.SetInitialContent(ddp.GetDocumentInitialContent(string(name)))
 
 	return document
 }
