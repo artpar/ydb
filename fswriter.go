@@ -16,11 +16,10 @@ type roomUpdate struct {
 
 type fswriter struct {
 	queue chan roomUpdate
-	dir   string
 }
 
-func (fswriter *fswriter) readRoomSize(roomname YjsRoomName) uint32 {
-	fi, err := os.Stat(fmt.Sprintf("%s/%s", fswriter.dir, string(roomname)))
+func (fswriter *fswriter) readRoomSize(filepath string) uint32 {
+	fi, err := os.Stat(filepath)
 	switch err.(type) {
 	case nil:
 	case *os.PathError:
@@ -35,12 +34,12 @@ func (fswriter *fswriter) registerRoomUpdate(room *room, roomname YjsRoomName) {
 	fswriter.queue <- roomUpdate{room, roomname}
 }
 
-func (fswriter *fswriter) startWriteTask() {
-	dir := fswriter.dir
+func (fswriter *fswriter) startWriteTask(dir string) {
 	for {
 		writeTask := <-fswriter.queue
 		room := writeTask.room
 		roomname := writeTask.roomname
+		writeFilepath := fmt.Sprintf("%s/%s", dir, string(roomname))
 		time.Sleep(time.Millisecond * 800)
 		room.mux.Lock()
 		debug("fswriter: created room lock")
@@ -54,7 +53,7 @@ func (fswriter *fswriter) startWriteTask() {
 		}
 		for _, sub := range room.pendingSubs {
 			if !room.hasSession(sub.session) {
-				f, _ := os.OpenFile(fmt.Sprintf("%s/%s", dir, string(roomname)), os.O_RDONLY|os.O_CREATE, stdPerms)
+				f, _ := os.OpenFile(writeFilepath, os.O_RDONLY|os.O_CREATE, stdPerms)
 				if sub.offset > 0 {
 					f.Seek(int64(sub.offset), 0)
 				}
@@ -72,7 +71,7 @@ func (fswriter *fswriter) startWriteTask() {
 		room.registered = false
 		if dataAvailable {
 			debug("fswriter: enter dataAvailable - write file")
-			f, err := os.OpenFile(fmt.Sprintf("%s/%s", dir, string(roomname)), os.O_APPEND|os.O_WRONLY|os.O_CREATE, stdPerms)
+			f, err := os.OpenFile(writeFilepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, stdPerms)
 			if err != nil {
 				panic(err)
 			}
@@ -93,22 +92,4 @@ func (fswriter *fswriter) startWriteTask() {
 		room.mux.Unlock()
 		debug("fswriter: removed lock")
 	}
-}
-
-func newFSWriter(dir string, fsAccessQueueLen uint, writeConcurrency int) (fswriter fswriter) {
-	fswriter.dir = dir
-	// must include x permission for user, otherwise user can't write files
-	if err := os.MkdirAll(dir, stdPerms|0100); err != nil {
-		panic(err)
-	}
-
-	fswriter.queue = make(chan roomUpdate, fsAccessQueueLen)
-	// TODO: start several write tasks
-	/*
-		for i := 0; i < writeConcurrency; i++ {wsConn
-			go fswriter.startWriteTask()
-		}
-	*/
-	go fswriter.startWriteTask()
-	return
 }

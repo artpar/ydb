@@ -15,11 +15,11 @@ type Ydb struct {
 	roomsMux sync.RWMutex
 	rooms    map[YjsRoomName]*room
 	// TODO: use guid instead of uint64
-	sessionsMux sync.Mutex
-	sessions    map[uint64]*session
-	fswriter    fswriter
-	seed        *rand.Rand
-	seedMux     sync.Mutex
+	sessionsMux      sync.Mutex
+	sessions         map[uint64]*session
+	seed             *rand.Rand
+	seedMux          sync.Mutex
+	documentProvider DocumentProvider
 }
 
 func (ydb *Ydb) genUint32() uint32 {
@@ -36,13 +36,14 @@ func (ydb *Ydb) genUint64() uint64 {
 	return n
 }
 
-func InitYdb(dir string) *Ydb {
+func InitYdb(documentProvider DocumentProvider) *Ydb {
 	// remember to update UnsafeClearAllYdbContent when updating here
 	ydb := Ydb{
 		rooms:    make(map[YjsRoomName]*room, 1000),
 		sessions: make(map[uint64]*session),
-		fswriter: newFSWriter(dir, 1000, 10), // TODO: have command line arguments for this
-		seed:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		//fswriter:         newFSWriter(dir, 1000, 10), // TODO: have command line arguments for this
+		documentProvider: documentProvider, // TODO: have command line arguments for this
+		seed:             rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	return &ydb
 }
@@ -61,7 +62,7 @@ func (ydb *Ydb) GetYjsRoom(name YjsRoomName) *room {
 			r.mux.Lock()
 			ydb.roomsMux.Unlock()
 			// read room offset..
-			r.offset = ydb.fswriter.readRoomSize(name)
+			r.offset = ydb.documentProvider.ReadRoomSize(name)
 			r.mux.Unlock()
 		} else {
 			ydb.roomsMux.Unlock()
@@ -124,15 +125,4 @@ func removeFSWriteDirContent(dir string) error {
 		}
 	}
 	return nil
-}
-
-// Clear all content in Ydb (files, sessions, rooms, ..).
-// Unsafe for production, only use for testing!
-// only works if dir is tmp
-func (ydb *Ydb) UnsafeClearAllYdbContent() {
-	dir := ydb.fswriter.dir
-	debug("Clear Ydb content")
-	ydb.rooms = make(map[YjsRoomName]*room, 1000)
-	ydb.sessions = make(map[uint64]*session)
-	removeFSWriteDirContent(dir)
 }

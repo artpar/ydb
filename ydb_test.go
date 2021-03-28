@@ -12,7 +12,15 @@ import (
 func createYdbTest(f func(ydbInstance *Ydb)) {
 	dir := "_test"
 	os.RemoveAll(dir)
-	ydbInstance := InitYdb(dir)
+	documentProvider := NewDiskDocumentProvider(dir, 10000, DocumentListener{
+		GetDocumentInitialContent: func(s string) []byte {
+			return []byte{}
+		},
+		SetDocumentInitialContent: func(s string, bytes []byte) {
+
+		},
+	})
+	ydbInstance := InitYdb(documentProvider)
 	go setupWebsocketsListener(":9999", ydbInstance)
 	time.Sleep(time.Second)
 	f(ydbInstance)

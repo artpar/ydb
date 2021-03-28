@@ -146,7 +146,7 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.add(wsConn)
 
-		go ydbInstance.subscribeRoom(session, uint32(0), uint32(0))
+		go ydbInstance.subscribeRoom(session, uint32(0))
 
 		go wsConn.readPump()
 		go wsConn.writePump()
@@ -155,11 +155,11 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 
 func setupWebsocketsListener(addr string, ydbInstance *Ydb) {
 	// TODO: only set this if in testing mode!
-	http.HandleFunc("/clearAll", func(w http.ResponseWriter, r *http.Request) {
-		ydbInstance.UnsafeClearAllYdbContent()
-		w.WriteHeader(200)
-		fmt.Fprintf(w, "OK")
-	})
+	//http.HandleFunc("/clearAll", func(w http.ResponseWriter, r *http.Request) {
+	//	ydbInstance.UnsafeClearAllYdbContent()
+	//	w.WriteHeader(200)
+	//	fmt.Fprintf(w, "OK")
+	//})
 	http.HandleFunc("/ws", YdbWsConnectionHandler(ydbInstance))
 	err := http.ListenAndServe(addr, nil)
 	if err != nil {

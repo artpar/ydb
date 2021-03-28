@@ -60,7 +60,7 @@ func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bo
 	}
 	room.mux.Unlock()
 	if register {
-		ydb.fswriter.registerRoomUpdate(room, roomname)
+		ydb.documentProvider.RegisterRoomUpdate(room, roomname)
 	}
 }
 
@@ -101,7 +101,7 @@ func (room *room) hasSession(session *session) bool {
 	return false
 }
 
-func (ydb *Ydb) subscribeRoom(session *session, roomsessionid uint32, offset uint32) {
+func (ydb *Ydb) subscribeRoom(session *session, offset uint32) {
 	ydb.modifyRoom(session.roomname, func(room *room) bool {
 		if !room.hasSession(session) {
 			if room.offset != offset {

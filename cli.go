@@ -42,7 +42,16 @@ func cliParseStart(args []string) {
 		fmt.Fprintln(os.Stderr, "Try 'ydb start --help' for more information")
 		os.Exit(1)
 	}
-	ydbInstance := InitYdb(*dir)
+
+	documentProvider := NewDiskDocumentProvider(*dir, 1000, DocumentListener{
+		GetDocumentInitialContent: func(s string) []byte {
+			return []byte{}
+		},
+		SetDocumentInitialContent: func(s string, bytes []byte) {
+
+		},
+	})
+	ydbInstance := InitYdb(documentProvider)
 	setupWebsocketsListener(":8899", ydbInstance)
 }
 
