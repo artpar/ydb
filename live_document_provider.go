@@ -22,12 +22,17 @@ type Document struct {
 
 func (d Document) SetInitialContent(initialContents []byte) {
 
+	b, _ := base64.StdEncoding.DecodeString("Z3JhcGggVEQKICAgIEFbQ2hyaXN0bWFzXSAtLT58R2V0IG1vbmV5fCBCKEdvIHNob3BwaW5nKQogICAgQiAtLT4gQ3tMZXQgbWUgdGhpbmt9CiAgICBDIC0tPnxPbmV8IERbTGFwdG9wXQogICAgQyAtLT58VHdvfCBFW2lQaG9uZV0KICAgIEMgLS0+fFRocmVlfCBGW2ZhOmZhLWNhciBDYXJdAA==")
+	buf := bytes.Buffer{}
+	buf.Write(b)
+	buf.Write(initialContents)
+
 	f, err := os.OpenFile(d.writepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
 	if err != nil {
 		panic(err)
 	}
 	debug("fswriter: opened file")
-	if _, err = f.Write(initialContents); err != nil {
+	if _, err = f.Write(buf.Bytes()); err != nil {
 		panic(err)
 	}
 	debug("fswriter: writing file")
@@ -50,11 +55,7 @@ func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomNam
 }
 
 func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string) []byte {
-	b, _ := base64.StdEncoding.DecodeString("Z3JhcGggVEQKICAgIEFbQ2hyaXN0bWFzXSAtLT58R2V0IG1vbmV5fCBCKEdvIHNob3BwaW5nKQogICAgQiAtLT4gQ3tMZXQgbWUgdGhpbmt9CiAgICBDIC0tPnxPbmV8IERbTGFwdG9wXQogICAgQyAtLT58VHdvfCBFW2lQaG9uZV0KICAgIEMgLS0+fFRocmVlfCBGW2ZhOmZhLWNhciBDYXJdAA==")
-	buf := bytes.Buffer{}
-	buf.Write(b)
-	buf.Write(ddp.dl.GetDocumentInitialContent(s))
-	return buf.Bytes()
+	return ddp.dl.GetDocumentInitialContent(s)
 }
 
 func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName) uint32 {
