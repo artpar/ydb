@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 )
@@ -39,6 +40,18 @@ func (d Document) SetInitialContent(initialContents []byte) {
 	}
 	debug("fswriter: writing file")
 	f.Close()
+}
+
+func (d Document) GetInitialContentBytes() []byte {
+
+	buf := bytes.Buffer{}
+	f, err := os.OpenFile(d.writepath, os.O_RDONLY, stdPerms)
+	if err != nil {
+		panic(err)
+	}
+	io.Copy(&buf, f)
+	f.Close()
+	return buf.Bytes()
 }
 
 type DiskDocumentProvider struct {
