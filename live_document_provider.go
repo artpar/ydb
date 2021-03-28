@@ -61,6 +61,7 @@ func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentList
 		tempDir:            tempDir,
 		documentAccessLock: sync.Mutex{},
 		dl:                 documentListener,
+		fswriter:           fswriter,
 	}
 
 	return &provider
