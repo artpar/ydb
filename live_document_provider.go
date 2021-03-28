@@ -22,7 +22,7 @@ type Document struct {
 
 func (d Document) SetInitialContent(initialContents []byte) {
 
-	b, _ := base64.StdEncoding.DecodeString("Z3JhcGggVEQKICAgIEFbQ2hyaXN0bWFzXSAtLT58R2V0IG1vbmV5fCBCKEdvIHNob3BwaW5nKQogICAgQiAtLT4gQ3tMZXQgbWUgdGhpbmt9CiAgICBDIC0tPnxPbmV8IERbTGFwdG9wXQogICAgQyAtLT58VHdvfCBFW2lQaG9uZV0KICAgIEMgLS0+fFRocmVlfCBGW2ZhOmZhLWNhciBDYXJdAA==")
+	b, _ := base64.StdEncoding.DecodeString("AAKkAQEBv4Ls0wwAhNzm1YwDlgWRAQ==")
 	buf := bytes.Buffer{}
 	buf.Write(b)
 	buf.Write(initialContents)
