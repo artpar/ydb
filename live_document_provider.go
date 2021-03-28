@@ -62,7 +62,7 @@ func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string) []byte {
 
 func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName) uint32 {
 	ddp.GetDocument(name)
-	return ddp.fswriter.readRoomSize(fmt.Sprintf("%v/%v", ddp.tempDir, name))
+	return ddp.fswriter.readRoomSize(fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name))
 }
 
 type DocumentListener struct {
@@ -96,7 +96,7 @@ func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentList
 
 func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 
-	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, os.PathSeparator, name)
+	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name)
 
 	document := Document{
 		writepath: writeFilepath,
