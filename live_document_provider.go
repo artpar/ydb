@@ -31,6 +31,8 @@ func (d Document) SetInitialContent(initialContents []byte) {
 	if err != nil {
 		panic(err)
 	}
+	f.Truncate(0)
+	f.Seek(0, 0)
 	debug("fswriter: opened file")
 	if _, err = f.Write(buf.Bytes()); err != nil {
 		panic(err)
