@@ -84,6 +84,7 @@ func (ydb *Ydb) createSession(roomname string) (s *session) {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
 	s = newSession(sessionid, roomname)
+	_ = ydb.documentProvider.GetDocument(YjsRoomName(roomname))
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s

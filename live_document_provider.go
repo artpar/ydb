@@ -28,6 +28,7 @@ type DiskDocumentProvider struct {
 }
 
 func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomName) {
+	ddp.GetDocument(roomname)
 	ddp.fswriter.queue <- roomUpdate{r, roomname}
 }
 
@@ -36,6 +37,7 @@ func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string) []byte {
 }
 
 func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName) uint32 {
+	ddp.GetDocument(name)
 	return ddp.fswriter.readRoomSize(fmt.Sprintf("%v/%v", ddp.tempDir, name))
 }
 
