@@ -69,16 +69,15 @@ func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentList
 
 func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 
-	writeFilepath := fmt.Sprintf("%v/%v", ddp.tempDir, name)
+	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, os.PathSeparator, name)
 
 	initialContents := ddp.dl.GetDocumentInitialContent(string(name))
 
-	f, err := os.OpenFile(writeFilepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, stdPerms)
+	f, err := os.OpenFile(writeFilepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
 	if err != nil {
 		panic(err)
 	}
 	debug("fswriter: opened file")
-
 	if _, err = f.Write(initialContents); err != nil {
 		panic(err)
 	}

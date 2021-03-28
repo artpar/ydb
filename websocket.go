@@ -129,8 +129,16 @@ func (wsConn *wsConn) writePump() {
 func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("new client..")
+
+		roomnameInterface := r.Context().Value("roomname")
+
 		urlParts := strings.Split(r.URL.Path, "/")
 		roomname := urlParts[len(urlParts)-1]
+
+		if roomnameInterface != nil {
+			roomname = roomnameInterface.(string)
+		}
+
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			fmt.Printf("error: error upgrading client %s", err.Error())
