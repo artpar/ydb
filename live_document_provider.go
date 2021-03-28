@@ -1,6 +1,8 @@
 package ydb
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"sync"
@@ -33,7 +35,11 @@ func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomNam
 }
 
 func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string) []byte {
-	return ddp.dl.GetDocumentInitialContent(s)
+	b, _ := base64.StdEncoding.DecodeString("Z3JhcGggVEQKICAgIEFbQ2hyaXN0bWFzXSAtLT58R2V0IG1vbmV5fCBCKEdvIHNob3BwaW5nKQogICAgQiAtLT4gQ3tMZXQgbWUgdGhpbmt9CiAgICBDIC0tPnxPbmV8IERbTGFwdG9wXQogICAgQyAtLT58VHdvfCBFW2lQaG9uZV0KICAgIEMgLS0+fFRocmVlfCBGW2ZhOmZhLWNhciBDYXJdAA==")
+	buf := bytes.Buffer{}
+	buf.Write(b)
+	buf.Write(ddp.dl.GetDocumentInitialContent(s))
+	return buf.Bytes()
 }
 
 func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName) uint32 {
