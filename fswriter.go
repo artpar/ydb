@@ -62,9 +62,7 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 				}
 				data, _ := ioutil.ReadAll(f)
 
-				for _, pending := range pendingWrites {
-					data = append(data, pending...)
-				}
+				data = append(data, pendingWrites...)
 
 				confirmedOffset := uint64(sub.offset) + uint64(len(data))
 
@@ -94,13 +92,8 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			}
 			debug("fswriter: opened file")
 
-			for _, write := range pendingWrites {
-				err = writePayload(f, write)
-
-				if err = writePayload(f, write); err != nil {
-					panic(err)
-				}
-
+			if _, err = f.Write(pendingWrites); err != nil {
+				panic(err)
 			}
 
 			debug("fswriter: writing file")

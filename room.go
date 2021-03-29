@@ -1,8 +1,10 @@
 package ydb
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -17,7 +19,7 @@ type pendingWrite struct {
 type room struct {
 	mux           sync.Mutex
 	registered    bool
-	pendingWrites [][]byte
+	pendingWrites []byte
 	subs          []*session
 	pendingSubs   []pendingSub
 	roomsessionid uint32
@@ -73,7 +75,13 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 		debug("updating room")
 		fmt.Printf("Payload: %v - %v", bs, base64.StdEncoding.EncodeToString(bs))
 
-		room.pendingWrites = append(room.pendingWrites, bs)
+		pendingWrite := &bytes.Buffer{}
+		err := writePayload(pendingWrite, bs)
+		if err != nil {
+			log.Print("Failed to create payload: %v", err)
+		}
+
+		room.pendingWrites = append(room.pendingWrites, pendingWrite.Bytes()...)
 
 		room.offset += uint32(len(bs))
 		debug(fmt.Sprintf("updating room .. number of subs: %d", len(room.subs)))
