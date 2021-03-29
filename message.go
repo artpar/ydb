@@ -205,23 +205,30 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 
 	write := &bytes.Buffer{}
 
-	writeUvarint(write, messageSync)
+	var err error
+	err = writeUvarint(write, messageSync)
+	if err != nil {
+		return err
+	}
 
 	switch messageType {
 	case messageYjsSyncStep1:
 		payload, _ := readPayload(m)
-		writeUvarint(write, messageYjsSyncStep1)
-		writePayload(write, payload)
+		err = writeUvarint(write, messageYjsSyncStep1)
+		err = writePayload(write, payload)
 	case messageYjsSyncStep2:
 		payload, _ := readPayload(m)
-		writeUvarint(write, messageYjsSyncStep2)
-		writePayload(write, payload)
+		err = writeUvarint(write, messageYjsSyncStep2)
+		err = writePayload(write, payload)
 
 	case messageYjsUpdate:
 		payload, _ := readPayload(m)
-		writeUvarint(write, messageYjsUpdate)
-		writePayload(write, payload)
+		err = writeUvarint(write, messageYjsUpdate)
+		err = writePayload(write, payload)
 
+	}
+	if err != nil {
+		return err
 	}
 
 	// send the rest of message
@@ -240,17 +247,20 @@ func readRoomname(m message) (YjsRoomName, error) {
 }
 
 func readPayload(m message) ([]byte, error) {
-	len, _ := binary.ReadUvarint(m)
-	bs := make([]byte, len)
-	m.Read(bs)
-	return bs, nil
+	len1, err := binary.ReadUvarint(m)
+	if err != nil {
+		return []byte{}, err
+	}
+	bs := make([]byte, len1)
+	_, err = m.Read(bs)
+	return bs, err
 }
 
 func writeUvarint(buf io.Writer, n uint64) error {
 	bs := make([]byte, binary.MaxVarintLen64)
-	len := binary.PutUvarint(bs, n)
-	buf.Write(bs[:len])
-	return nil
+	len1 := binary.PutUvarint(bs, n)
+	_, err := buf.Write(bs[:len1])
+	return err
 }
 
 func writeString(buf io.Writer, str string) error {
@@ -262,7 +272,10 @@ func writeRoomname(buf io.Writer, roomname YjsRoomName) error {
 }
 
 func writePayload(buf io.Writer, payload []byte) error {
-	writeUvarint(buf, uint64(len(payload)))
-	buf.Write(payload)
-	return nil
+	err := writeUvarint(buf, uint64(len(payload)))
+	if err != nil {
+		return err
+	}
+	_, err = buf.Write(payload)
+	return err
 }

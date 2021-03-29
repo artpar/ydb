@@ -71,16 +71,11 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 				dataReader := bytes.NewReader(data)
 
 				for {
-					updateLength, err := dataReader.ReadByte()
+					payload, err := readPayload(dataReader)
 					if err != nil {
 						break
 					}
-					update := make([]byte, updateLength)
-					n, err := dataReader.Read(update)
-					if err != nil || n != int(updateLength) {
-						break
-					}
-					sub.session.sendUpdate(roomname, update, confirmedOffset)
+					sub.session.sendUpdate(roomname, payload, confirmedOffset)
 
 				}
 
@@ -100,8 +95,9 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			debug("fswriter: opened file")
 
 			for _, write := range pendingWrites {
-				f.Write([]byte{byte(len(write))})
-				if _, err = f.Write(write); err != nil {
+				err = writePayload(f, write)
+
+				if err = writePayload(f, write); err != nil {
 					panic(err)
 				}
 

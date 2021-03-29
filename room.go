@@ -1,7 +1,6 @@
 package ydb
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"sync"
@@ -74,10 +73,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 		debug("updating room")
 		fmt.Printf("Payload: %v - %v", bs, base64.StdEncoding.EncodeToString(bs))
 
-		update := &bytes.Buffer{}
-		update.Write([]byte{byte(len(bs))})
-		update.Write(bs)
-		room.pendingWrites = append(room.pendingWrites, update.Bytes())
+		room.pendingWrites = append(room.pendingWrites, bs)
 
 		room.offset += uint32(len(bs))
 		debug(fmt.Sprintf("updating room .. number of subs: %d", len(room.subs)))
