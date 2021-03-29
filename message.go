@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -248,6 +249,9 @@ func readRoomname(m message) (YjsRoomName, error) {
 
 func readPayload(m message) ([]byte, error) {
 	len1, err := binary.ReadUvarint(m)
+	if len1 > 1024*1024*1024 {
+		return nil, errors.New("message payload too long")
+	}
 	if err != nil {
 		return []byte{}, err
 	}

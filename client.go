@@ -35,24 +35,44 @@ func newClient() *client {
 	}
 }
 
-func (client *client) readMessage(message []byte) {
+func (client *client) readMessage(message []byte) error {
 	buf := bytes.NewBuffer(message)
-	switch messageType, _ := buf.ReadByte(); messageType {
+	var err error
+	switch messageType, err := buf.ReadByte(); messageType {
 	case messageSync:
-		confirmation, _ := binary.ReadUvarint(buf)
-		roomname, _ := readRoomname(buf)
-		bytes, _ := readPayload(buf)
+		if err != nil {
+			return err
+		}
+		confirmation, err := binary.ReadUvarint(buf)
+		if err != nil {
+			return err
+		}
+		roomname, err := readRoomname(buf)
+		if err != nil {
+			return err
+		}
+		bytes, err := readPayload(buf)
+		if err != nil {
+			return err
+		}
 		room := client.rooms[roomname]
 		room.data = append(room.data, bytes...)
 		client.rooms[roomname] = room
 		client.send <- createMessageConfirmation(confirmation)
 	case messageConfirmation:
-		conf, _ := binary.ReadUvarint(buf)
+		if err != nil {
+			return err
+		}
+		conf, err := binary.ReadUvarint(buf)
+		if err != nil {
+			return err
+		}
 		for conf >= client.nextExpectedConfirmation {
 			delete(client.unconfirmed, client.nextExpectedConfirmation)
 			client.nextExpectedConfirmation++
 		}
 	}
+	return err
 }
 
 func (client *client) WaitForConfs() {
@@ -85,7 +105,11 @@ func (client *client) Connect(url string) (err error) {
 					break
 				}
 				if messageType == websocket.BinaryMessage {
-					client.readMessage(message)
+					err := client.readMessage(message)
+					if err != nil {
+						log.Printf("failed to ready message from client: %v - %v", err, message)
+						continue
+					}
 				}
 			}
 		}()

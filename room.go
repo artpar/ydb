@@ -77,7 +77,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 		pendingWrite := &bytes.Buffer{}
 		err := writePayload(pendingWrite, bs)
 		if err != nil {
-			log.Print("Failed to create payload: %v", err)
+			log.Printf("Failed to create payload: %v", err)
 		}
 
 		room.pendingWrites = append(room.pendingWrites, pendingWrite.Bytes()...)
