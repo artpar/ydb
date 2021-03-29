@@ -24,16 +24,16 @@ func (d Document) SetInitialContent(initialContents []byte) {
 
 	f, err := os.OpenFile(d.writepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, stdPerms)
 	if err != nil {
-		panic(err)
+		return
 	}
+	defer f.Close()
 	f.Truncate(0)
 	f.Seek(0, 0)
 	debug("fswriter: opened file")
 	if _, err = f.Write(initialContents); err != nil {
-		panic(err)
+		return
 	}
 	debug("fswriter: writing file")
-	f.Close()
 }
 
 func (d Document) GetInitialContentBytes() []byte {

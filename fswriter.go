@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"time"
 )
@@ -88,12 +89,16 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			debug("fswriter: enter dataAvailable - write file")
 			f, err := os.OpenFile(writeFilepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, stdPerms)
 			if err != nil {
-				panic(err)
+				log.Print("failed to open file: %v, history file is corrupted: %v", writeFilepath, err)
+				room.pendingWrites = append(room.pendingWrites, pendingWrites...)
+				continue
 			}
 			debug("fswriter: opened file")
 
 			if _, err = f.Write(pendingWrites); err != nil {
-				panic(err)
+				log.Print("failed to write operations to file: %v, history file is corrupted: %v", writeFilepath, err)
+				room.pendingWrites = append(room.pendingWrites, pendingWrites...)
+				continue
 			}
 
 			debug("fswriter: writing file")
