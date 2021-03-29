@@ -2,7 +2,6 @@ package ydb
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"sync"
@@ -73,7 +72,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 	debug("trying to update room")
 	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")
-		fmt.Printf("Payload: %v - %v", bs, base64.StdEncoding.EncodeToString(bs))
+		//fmt.Printf("Payload: %v - %v", bs, base64.StdEncoding.EncodeToString(bs))
 
 		pendingWrite := &bytes.Buffer{}
 		err := writePayload(pendingWrite, bs)

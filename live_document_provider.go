@@ -110,7 +110,10 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 		name:      name,
 	}
 
-	document.SetInitialContent(ddp.GetDocumentInitialContent(string(name)))
+	initialContent := ddp.GetDocumentInitialContent(string(name))
+	if len(initialContent) > 0 {
+		document.SetInitialContent(initialContent)
+	}
 
 	return document
 }
