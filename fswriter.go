@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -51,17 +52,38 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			// This goroutine will save dataAvailable and confirm pending confirmations
 			room.pendingWrites = nil
 		}
+
+		f, _ := os.OpenFile(writeFilepath, os.O_RDONLY|os.O_CREATE, stdPerms)
+
 		for _, sub := range room.pendingSubs {
 			if !room.hasSession(sub.session) {
-				f, _ := os.OpenFile(writeFilepath, os.O_RDONLY|os.O_CREATE, stdPerms)
 				if sub.offset > 0 {
 					f.Seek(int64(sub.offset), 0)
 				}
 				data, _ := ioutil.ReadAll(f)
-				data = append(data, pendingWrites...)
+
+				for _, pending := range pendingWrites {
+					data = append(data, pending...)
+				}
+
 				confirmedOffset := uint64(sub.offset) + uint64(len(data))
-				// TODO: combine sub and update here
-				sub.session.sendUpdate(roomname, data, confirmedOffset)
+
+				dataReader := bytes.NewReader(data)
+
+				for {
+					updateLength, err := dataReader.ReadByte()
+					if err != nil {
+						break
+					}
+					update := make([]byte, updateLength)
+					n, err := dataReader.Read(update)
+					if err != nil || n != int(updateLength) {
+						break
+					}
+					sub.session.sendUpdate(roomname, update, confirmedOffset)
+
+				}
+
 				//sub.session.sendConfirmedByHost(roomname, confirmedOffset)
 				room.subs = append(room.subs, sub.session)
 				f.Close()
@@ -77,9 +99,14 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			}
 			debug("fswriter: opened file")
 
-			if _, err = f.Write(pendingWrites); err != nil {
-				panic(err)
+			for _, write := range pendingWrites {
+				f.Write([]byte{byte(len(write))})
+				if _, err = f.Write(write); err != nil {
+					panic(err)
+				}
+
 			}
+
 			debug("fswriter: writing file")
 			f.Close()
 			debug("fswriter: closed file")
