@@ -41,7 +41,7 @@ func (d Document) GetInitialContentBytes() []byte {
 	buf := bytes.Buffer{}
 	f, err := os.OpenFile(d.writepath, os.O_RDONLY, stdPerms)
 	if err != nil {
-		panic(err)
+		return []byte{}
 	}
 	io.Copy(&buf, f)
 	f.Close()

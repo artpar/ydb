@@ -27,7 +27,8 @@ func (fswriter *fswriter) readRoomSize(filepath string) uint32 {
 	case *os.PathError:
 		return 0
 	default:
-		panic("unexpected error while reading file stats")
+		log.Printf(fmt.Sprintf("unexpected error while reading file stats: %v - %v", filepath, err))
+		return 0
 	}
 	return uint32(fi.Size())
 }
