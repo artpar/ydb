@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -9,9 +10,9 @@ import (
 )
 
 type DocumentProvider interface {
-	GetDocument(documentName YjsRoomName) *Document
-	RegisterRoomUpdate(r *room, roomname YjsRoomName)
-	ReadRoomSize(name YjsRoomName) uint32
+	GetDocument(documentName YjsRoomName, tx *sql.Tx) *Document
+	RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sql.Tx)
+	ReadRoomSize(name YjsRoomName, tx *sql.Tx) uint32
 }
 
 type Document struct {
@@ -58,23 +59,23 @@ type DiskDocumentProvider struct {
 	dl                        DocumentListener
 }
 
-func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomName) {
-	ddp.GetDocument(roomname)
+func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sql.Tx) {
+	ddp.GetDocument(roomname, tx)
 	ddp.fswriter.queue <- roomUpdate{r, roomname}
 }
 
-func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string) []byte {
-	return ddp.dl.GetDocumentInitialContent(s)
+func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string, tx *sql.Tx) []byte {
+	return ddp.dl.GetDocumentInitialContent(s, tx)
 }
 
-func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName) uint32 {
-	ddp.GetDocument(name)
+func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName, tx *sql.Tx) uint32 {
+	ddp.GetDocument(name, tx)
 	return ddp.fswriter.readRoomSize(fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name))
 }
 
 type DocumentListener struct {
-	GetDocumentInitialContent func(string) []byte
-	SetDocumentInitialContent func(string, []byte)
+	GetDocumentInitialContent func(string, *sql.Tx) []byte
+	SetDocumentInitialContent func(string, *sql.Tx) []byte
 }
 
 func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentListener DocumentListener) DocumentProvider {
@@ -101,7 +102,7 @@ func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentList
 
 }
 
-func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
+func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName, tx *sql.Tx) Document {
 
 	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name)
 
@@ -110,7 +111,7 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 		name:      name,
 	}
 
-	initialContent := ddp.GetDocumentInitialContent(string(name))
+	initialContent := ddp.GetDocumentInitialContent(string(name), tx)
 	if len(initialContent) > 0 {
 		document.SetInitialContent(initialContent)
 	}
@@ -118,13 +119,13 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName) Document {
 	return document
 }
 
-func (ddp *DiskDocumentProvider) GetDocument(documentName YjsRoomName) *Document {
+func (ddp *DiskDocumentProvider) GetDocument(documentName YjsRoomName, tx *sql.Tx) *Document {
 
 	ddp.documentAccessLock.Lock()
 	defer ddp.documentAccessLock.Unlock()
 	document, ok := ddp.documentMap[documentName]
 	if !ok {
-		document = ddp.newDocument(documentName)
+		document = ddp.newDocument(documentName, tx)
 		ddp.documentMap[documentName] = document
 	}
 
