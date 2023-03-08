@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -49,7 +50,7 @@ func InitYdb(documentProvider DocumentProvider) *Ydb {
 }
 
 // GetYjsRoom from the global ydb instance. safe for parallel access.
-func (ydb *Ydb) GetYjsRoom(name YjsRoomName) *room {
+func (ydb *Ydb) GetYjsRoom(name YjsRoomName, tx *sql.Tx) *room {
 	ydb.roomsMux.RLock()
 	r := ydb.rooms[name]
 	ydb.roomsMux.RUnlock()
@@ -62,7 +63,7 @@ func (ydb *Ydb) GetYjsRoom(name YjsRoomName) *room {
 			r.mux.Lock()
 			ydb.roomsMux.Unlock()
 			// read room offset..
-			r.offset = ydb.documentProvider.ReadRoomSize(name)
+			r.offset = ydb.documentProvider.ReadRoomSize(name, tx)
 			r.mux.Unlock()
 		} else {
 			ydb.roomsMux.Unlock()
@@ -77,14 +78,14 @@ func (ydb *Ydb) getSession(sessionid uint64) *session {
 	return ydb.sessions[sessionid]
 }
 
-func (ydb *Ydb) createSession(roomname string) (s *session) {
+func (ydb *Ydb) createSession(roomname string, tx *sql.Tx) (s *session) {
 	ydb.sessionsMux.Lock()
 	sessionid := ydb.genUint64()
 	if _, ok := ydb.sessions[sessionid]; ok {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
 	s = newSession(sessionid, roomname)
-	_ = ydb.documentProvider.GetDocument(YjsRoomName(roomname))
+	_ = ydb.documentProvider.GetDocument(YjsRoomName(roomname), tx)
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s

@@ -75,7 +75,7 @@ func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName, tx *sql.Tx) uint
 
 type DocumentListener struct {
 	GetDocumentInitialContent func(string, *sql.Tx) []byte
-	SetDocumentInitialContent func(string, *sql.Tx) []byte
+	SetDocumentInitialContent func(string, *sql.Tx, []byte)
 }
 
 func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentListener DocumentListener) DocumentProvider {

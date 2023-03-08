@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -44,10 +45,10 @@ func cliParseStart(args []string) {
 	}
 
 	documentProvider := NewDiskDocumentProvider(*dir, 1000, DocumentListener{
-		GetDocumentInitialContent: func(s string) []byte {
+		GetDocumentInitialContent: func(s string, tx *sql.Tx) []byte {
 			return []byte{}
 		},
-		SetDocumentInitialContent: func(s string, bytes []byte) {
+		SetDocumentInitialContent: func(s string, tx *sql.Tx, bytes []byte) {
 
 		},
 	})

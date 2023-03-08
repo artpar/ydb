@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"database/sql"
 	"math/rand"
 	"os"
 	"strconv"
@@ -13,10 +14,10 @@ func createYdbTest(f func(ydbInstance *Ydb)) {
 	dir := "_test"
 	os.RemoveAll(dir)
 	documentProvider := NewDiskDocumentProvider(dir, 10000, DocumentListener{
-		GetDocumentInitialContent: func(s string) []byte {
+		GetDocumentInitialContent: func(s string, tx *sql.Tx) []byte {
 			return []byte{}
 		},
-		SetDocumentInitialContent: func(s string, bytes []byte) {
+		SetDocumentInitialContent: func(s string, tx *sql.Tx, bytes []byte) {
 
 		},
 	})
@@ -37,7 +38,7 @@ func TestGetRoom(t *testing.T) {
 			var i uint64
 			for ; i < numOfTests; i++ {
 				roomname := YjsRoomName(strconv.FormatUint(r.Uint64()%numOfTests, 10))
-				ydbInstance.GetYjsRoom(roomname)
+				ydbInstance.GetYjsRoom(roomname, nil)
 			}
 			wg.Done()
 		}

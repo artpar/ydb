@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -33,8 +34,8 @@ func (ydb *Ydb) newRoom() *room {
 	}
 }
 
-func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool)) {
-	room := ydb.GetYjsRoom(roomname)
+func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool), tx *sql.Tx) {
+	room := ydb.GetYjsRoom(roomname, tx)
 	var register bool
 	room.mux.Lock()
 	// try to clean up subs
@@ -62,13 +63,13 @@ func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bo
 	}
 	room.mux.Unlock()
 	if register {
-		ydb.documentProvider.RegisterRoomUpdate(room, roomname)
+		ydb.documentProvider.RegisterRoomUpdate(room, roomname, tx)
 	}
 }
 
 // update in-memory buffer of writable data. Registers in fswriter if new data is available.
 // Writes to buffer until fswriter owns the buffer.
-func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte, tx *sql.Tx) {
 	debug("trying to update room")
 	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")
@@ -93,7 +94,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 		//session.sendHostUnconfirmedByClient(clientConf, uint64(room.offset))
 		debug("updating room .. sent conf to client")
 		return true
-	})
+	}, tx)
 	debug("done updating room")
 }
 
@@ -111,7 +112,7 @@ func (room *room) hasSession(session *session) bool {
 	return false
 }
 
-func (ydb *Ydb) subscribeRoom(session *session, offset uint32) {
+func (ydb *Ydb) subscribeRoom(session *session, offset uint32, tx *sql.Tx) {
 	ydb.modifyRoom(session.roomname, func(room *room) bool {
 		if !room.hasSession(session) {
 			if room.offset != offset {
@@ -122,5 +123,5 @@ func (ydb *Ydb) subscribeRoom(session *session, offset uint32) {
 			// session.sendConfirmedByHost(YjsRoomName, uint64(offset))
 		}
 		return false // whether room data needs to access fswriter
-	})
+	}, tx)
 }

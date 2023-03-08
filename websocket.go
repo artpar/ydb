@@ -147,14 +147,14 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 		var sessionid uint64 // TODO: get the sessionid from http headers
 		var session *session
 		if sessionid == 0 {
-			session = ydbInstance.createSession(roomname)
+			session = ydbInstance.createSession(roomname, nil)
 		} else {
 			session = ydbInstance.getSession(sessionid)
 		}
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.add(wsConn)
 
-		go ydbInstance.subscribeRoom(session, uint32(0))
+		go ydbInstance.subscribeRoom(session, uint32(0), nil)
 
 		go wsConn.readPump()
 		go wsConn.writePump()
