@@ -79,7 +79,7 @@ func (wsConn *wsConn) readPump() {
 		}
 		mbuffer := bytes.NewBuffer(message)
 		for {
-			err := wsConn.ydb.readMessage(mbuffer, wsConn.session)
+			err := wsConn.ydb.readMessage(mbuffer, wsConn.session, nil)
 			if err != nil {
 				break
 			}
