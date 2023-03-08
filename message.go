@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -26,7 +27,7 @@ type message interface {
 	Read(p []byte) (int, error)
 }
 
-func (ydb *Ydb) readMessage(m message, session *session) (err error) {
+func (ydb *Ydb) readMessage(m message, session *session, tx *sql.Tx) (err error) {
 	messageType, err := binary.ReadUvarint(m)
 	if err != nil {
 		return err
@@ -37,7 +38,7 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 		err = ydb.readSubMessage(m, session)
 	case messageSync:
 		debug("reading update message")
-		err = ydb.readUpdateMessage(m, session)
+		err = ydb.readUpdateMessage(m, session, tx)
 	case messageConfirmation:
 		debug("reading conf message")
 		err = readConfirmationMessage(m, session)
@@ -98,7 +99,6 @@ func createMessageSubscribe(conf uint64, subs ...subDefinition) []byte {
 	return buf.Bytes()
 }
 
-//
 func createMessageUpdate(roomname YjsRoomName, offsetOrConf uint64, data []byte) []byte {
 	buf := &bytes.Buffer{}
 	writeUvarint(buf, messageSync)
@@ -199,7 +199,7 @@ func readStateVector(m message) []byte {
 	return encoder.Bytes()
 }
 
-func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
+func (ydb *Ydb) readUpdateMessage(m message, session *session, tx *sql.Tx) error {
 
 	messageType, _ := binary.ReadUvarint(m)
 	//roomname, _ := readRoomname(m)
@@ -233,7 +233,7 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 	}
 
 	// send the rest of message
-	ydb.updateRoom(session.roomname, session, write.Bytes())
+	ydb.updateRoom(session.roomname, session, write.Bytes(), tx)
 	return nil
 }
 
