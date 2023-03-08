@@ -2,17 +2,17 @@ package ydb
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"io"
 	"os"
 	"sync"
 )
 
 type DocumentProvider interface {
-	GetDocument(documentName YjsRoomName, tx *sql.Tx) *Document
-	RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sql.Tx)
-	ReadRoomSize(name YjsRoomName, tx *sql.Tx) uint32
+	GetDocument(documentName YjsRoomName, tx *sqlx.Tx) *Document
+	RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sqlx.Tx)
+	ReadRoomSize(name YjsRoomName, tx *sqlx.Tx) uint32
 }
 
 type Document struct {
@@ -59,23 +59,23 @@ type DiskDocumentProvider struct {
 	dl                        DocumentListener
 }
 
-func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sql.Tx) {
+func (ddp *DiskDocumentProvider) RegisterRoomUpdate(r *room, roomname YjsRoomName, tx *sqlx.Tx) {
 	ddp.GetDocument(roomname, tx)
 	ddp.fswriter.queue <- roomUpdate{r, roomname}
 }
 
-func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string, tx *sql.Tx) []byte {
+func (ddp *DiskDocumentProvider) GetDocumentInitialContent(s string, tx *sqlx.Tx) []byte {
 	return ddp.dl.GetDocumentInitialContent(s, tx)
 }
 
-func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName, tx *sql.Tx) uint32 {
+func (ddp *DiskDocumentProvider) ReadRoomSize(name YjsRoomName, tx *sqlx.Tx) uint32 {
 	ddp.GetDocument(name, tx)
 	return ddp.fswriter.readRoomSize(fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name))
 }
 
 type DocumentListener struct {
-	GetDocumentInitialContent func(string, *sql.Tx) []byte
-	SetDocumentInitialContent func(string, *sql.Tx, []byte)
+	GetDocumentInitialContent func(string, *sqlx.Tx) []byte
+	SetDocumentInitialContent func(string, *sqlx.Tx, []byte)
 }
 
 func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentListener DocumentListener) DocumentProvider {
@@ -102,7 +102,7 @@ func NewDiskDocumentProvider(tempDir string, fsAccessQueueLen uint, documentList
 
 }
 
-func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName, tx *sql.Tx) Document {
+func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName, tx *sqlx.Tx) Document {
 
 	writeFilepath := fmt.Sprintf("%v%v%v", ddp.tempDir, string(os.PathSeparator), name)
 
@@ -119,7 +119,7 @@ func (ddp *DiskDocumentProvider) newDocument(name YjsRoomName, tx *sql.Tx) Docum
 	return document
 }
 
-func (ddp *DiskDocumentProvider) GetDocument(documentName YjsRoomName, tx *sql.Tx) *Document {
+func (ddp *DiskDocumentProvider) GetDocument(documentName YjsRoomName, tx *sqlx.Tx) *Document {
 
 	ddp.documentAccessLock.Lock()
 	defer ddp.documentAccessLock.Unlock()

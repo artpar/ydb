@@ -1,7 +1,7 @@
 package ydb
 
 import (
-	"database/sql"
+	"github.com/jmoiron/sqlx"
 	"math/rand"
 	"os"
 	"strconv"
@@ -14,10 +14,10 @@ func createYdbTest(f func(ydbInstance *Ydb)) {
 	dir := "_test"
 	os.RemoveAll(dir)
 	documentProvider := NewDiskDocumentProvider(dir, 10000, DocumentListener{
-		GetDocumentInitialContent: func(s string, tx *sql.Tx) []byte {
+		GetDocumentInitialContent: func(s string, tx *sqlx.Tx) []byte {
 			return []byte{}
 		},
-		SetDocumentInitialContent: func(s string, tx *sql.Tx, bytes []byte) {
+		SetDocumentInitialContent: func(s string, tx *sqlx.Tx, bytes []byte) {
 
 		},
 	})

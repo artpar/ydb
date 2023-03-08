@@ -1,9 +1,9 @@
 package ydb
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"io/ioutil"
 	"os"
 )
@@ -45,10 +45,10 @@ func cliParseStart(args []string) {
 	}
 
 	documentProvider := NewDiskDocumentProvider(*dir, 1000, DocumentListener{
-		GetDocumentInitialContent: func(s string, tx *sql.Tx) []byte {
+		GetDocumentInitialContent: func(s string, tx *sqlx.Tx) []byte {
 			return []byte{}
 		},
-		SetDocumentInitialContent: func(s string, tx *sql.Tx, bytes []byte) {
+		SetDocumentInitialContent: func(s string, tx *sqlx.Tx, bytes []byte) {
 
 		},
 	})

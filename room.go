@@ -2,8 +2,8 @@ package ydb
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"log"
 	"sync"
 )
@@ -34,7 +34,7 @@ func (ydb *Ydb) newRoom() *room {
 	}
 }
 
-func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool), tx *sql.Tx) {
+func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool), tx *sqlx.Tx) {
 	room := ydb.GetYjsRoom(roomname, tx)
 	var register bool
 	room.mux.Lock()
@@ -69,7 +69,7 @@ func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bo
 
 // update in-memory buffer of writable data. Registers in fswriter if new data is available.
 // Writes to buffer until fswriter owns the buffer.
-func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte, tx *sql.Tx) {
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte, tx *sqlx.Tx) {
 	debug("trying to update room")
 	ydb.modifyRoom(roomname, func(room *room) bool {
 		debug("updating room")
@@ -112,7 +112,7 @@ func (room *room) hasSession(session *session) bool {
 	return false
 }
 
-func (ydb *Ydb) subscribeRoom(session *session, offset uint32, tx *sql.Tx) {
+func (ydb *Ydb) subscribeRoom(session *session, offset uint32, tx *sqlx.Tx) {
 	ydb.modifyRoom(session.roomname, func(room *room) bool {
 		if !room.hasSession(session) {
 			if room.offset != offset {

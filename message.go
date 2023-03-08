@@ -2,11 +2,11 @@ package ydb
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"io"
 )
 
@@ -27,7 +27,7 @@ type message interface {
 	Read(p []byte) (int, error)
 }
 
-func (ydb *Ydb) readMessage(m message, session *session, tx *sql.Tx) (err error) {
+func (ydb *Ydb) readMessage(m message, session *session, tx *sqlx.Tx) (err error) {
 	messageType, err := binary.ReadUvarint(m)
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func readStateVector(m message) []byte {
 	return encoder.Bytes()
 }
 
-func (ydb *Ydb) readUpdateMessage(m message, session *session, tx *sql.Tx) error {
+func (ydb *Ydb) readUpdateMessage(m message, session *session, tx *sqlx.Tx) error {
 
 	messageType, _ := binary.ReadUvarint(m)
 	//roomname, _ := readRoomname(m)
