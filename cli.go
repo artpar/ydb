@@ -52,7 +52,8 @@ func cliParseStart(args []string) {
 
 		},
 	})
-	ydbInstance := InitYdb(documentProvider)
+	var sessionIdFetcher SessionIdFetcher
+	ydbInstance := InitYdb(documentProvider, sessionIdFetcher)
 	setupWebsocketsListener(":8899", ydbInstance)
 }
 

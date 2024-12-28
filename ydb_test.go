@@ -21,7 +21,7 @@ func createYdbTest(f func(ydbInstance *Ydb)) {
 
 		},
 	})
-	ydbInstance := InitYdb(documentProvider)
+	ydbInstance := InitYdb(documentProvider, nil)
 	go setupWebsocketsListener(":9999", ydbInstance)
 	time.Sleep(time.Second)
 	f(ydbInstance)

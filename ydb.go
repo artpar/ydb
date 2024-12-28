@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -21,6 +22,7 @@ type Ydb struct {
 	seed             *rand.Rand
 	seedMux          sync.Mutex
 	documentProvider DocumentProvider
+	sessionIdFetcher SessionIdFetcher
 }
 
 func (ydb *Ydb) genUint32() uint32 {
@@ -37,7 +39,7 @@ func (ydb *Ydb) genUint64() uint64 {
 	return n
 }
 
-func InitYdb(documentProvider DocumentProvider) *Ydb {
+func InitYdb(documentProvider DocumentProvider, fetcher SessionIdFetcher) *Ydb {
 	// remember to update UnsafeClearAllYdbContent when updating here
 	ydb := Ydb{
 		rooms:    make(map[YjsRoomName]*room, 1000),
@@ -45,6 +47,7 @@ func InitYdb(documentProvider DocumentProvider) *Ydb {
 		//fswriter:         newFSWriter(dir, 1000, 10), // TODO: have command line arguments for this
 		documentProvider: documentProvider, // TODO: have command line arguments for this
 		seed:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		sessionIdFetcher: fetcher,
 	}
 	return &ydb
 }
@@ -103,6 +106,10 @@ func (ydb *Ydb) removeSession(sessionid uint64) (err error) {
 	}
 	ydb.sessionsMux.Unlock()
 	return
+}
+
+type SessionIdFetcher interface {
+	GetSessionId(r *http.Request, roomname string) uint64
 }
 
 // TODO: refactor/remove..

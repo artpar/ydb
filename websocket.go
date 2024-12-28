@@ -145,6 +145,7 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			return
 		}
 		var sessionid uint64 // TODO: get the sessionid from http headers
+		sessionid = ydbInstance.sessionIdFetcher.GetSessionId(r, roomname)
 		var session *session
 		if sessionid == 0 {
 			session = ydbInstance.createSession(roomname, nil)
