@@ -154,6 +154,10 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			SessionIdMap[roomname] = session.sessionid
 		} else {
 			session = ydbInstance.getSession(sessionid)
+			if session == nil {
+				session = ydbInstance.createSession(roomname, nil)
+				SessionIdMap[roomname] = session.sessionid
+			}
 		}
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.add(wsConn)
