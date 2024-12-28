@@ -46,6 +46,7 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 		time.Sleep(time.Millisecond * 800)
 		room.mux.Lock()
 		debug("fswriter: created room lock")
+
 		pendingWrites := room.pendingWrites
 		dataAvailable := false
 		if len(pendingWrites) > 0 {
@@ -92,6 +93,7 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			if err != nil {
 				log.Printf("failed to open file: %v, history file is corrupted: %v", writeFilepath, err)
 				room.pendingWrites = append(room.pendingWrites, pendingWrites...)
+				room.mux.Unlock() // Ensure lock is released before retrying
 				continue
 			}
 			debug("fswriter: opened file")
@@ -99,6 +101,8 @@ func (fswriter *fswriter) startWriteTask(dir string) {
 			if _, err = f.Write(pendingWrites); err != nil {
 				log.Printf("failed to write operations to file: %v, history file is corrupted: %v", writeFilepath, err)
 				room.pendingWrites = append(room.pendingWrites, pendingWrites...)
+				f.Close()         // Close the file before retrying
+				room.mux.Unlock() // Ensure lock is released before retrying
 				continue
 			}
 
