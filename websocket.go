@@ -91,8 +91,6 @@ func (wsConn *wsConn) readPump() {
 	// TODO: unregister conn from ydb
 }
 
-var SessionIdMap = make(map[string]uint64)
-
 func (wsConn *wsConn) writePump() {
 	conn := wsConn.conn
 	ticker := time.NewTicker(pingPeriod)
@@ -146,18 +144,12 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			fmt.Printf("error: error upgrading client %s", err.Error())
 			return
 		}
-		var sessionid uint64               // TODO: get the sessionid from http headers
-		sessionid = SessionIdMap[roomname] // ydbInstance.sessionIdFetcher.GetSessionId(r, roomname)
+		var sessionid uint64 // TODO: get the sessionid from http headers
 		var session *session
 		if sessionid == 0 {
 			session = ydbInstance.createSession(roomname, nil)
-			SessionIdMap[roomname] = session.sessionid
 		} else {
 			session = ydbInstance.getSession(sessionid)
-			if session == nil {
-				session = ydbInstance.createSession(roomname, nil)
-				SessionIdMap[roomname] = session.sessionid
-			}
 		}
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.add(wsConn)
