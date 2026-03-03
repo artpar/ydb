@@ -96,6 +96,25 @@ func TestDiskStoreMaxRoomSize(t *testing.T) {
 	}
 }
 
+func TestDiskStoreMaxRoomSizeFirstWrite(t *testing.T) {
+	dir := t.TempDir()
+	store := NewDiskStore(dir, WithMaxRoomSize(10))
+
+	room := YjsRoomName("newroom")
+
+	// First write to a non-existent file should also be capped
+	_, err := store.Append(room, []byte("this-exceeds-ten-bytes"))
+	if err == nil {
+		t.Fatalf("first write exceeding max size should fail")
+	}
+
+	// First write within limit should succeed
+	_, err = store.Append(room, []byte("ok"))
+	if err != nil {
+		t.Fatalf("first write within limit should succeed: %v", err)
+	}
+}
+
 func TestDiskStoreConcurrentSameRoom(t *testing.T) {
 	dir := t.TempDir()
 	store := NewDiskStore(dir)

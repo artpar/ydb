@@ -171,6 +171,73 @@ func TestWsMultipleRoomsIsolation(t *testing.T) {
 	}
 }
 
+func TestWsDiskStoreSingleClient(t *testing.T) {
+	ts := newDiskTestServer(t)
+	roomname := "disk-single"
+
+	c := ts.dial(t, roomname)
+	payload := []byte("disk-store-data")
+	c.sendSyncUpdate(payload)
+
+	waitFor(t, 2*time.Second, func() bool {
+		size, _ := ts.store.Size(YjsRoomName(roomname))
+		return size > 0
+	})
+
+	data, _, err := ts.store.ReadFrom(YjsRoomName(roomname), 0)
+	if err != nil {
+		t.Fatalf("ReadFrom failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("expected data in disk store")
+	}
+
+	reader := bytes.NewReader(data)
+	storedMsg, err := readPayload(reader)
+	if err != nil {
+		t.Fatalf("readPayload failed: %v", err)
+	}
+
+	syncType, innerPayload, err := parseSyncMessage(storedMsg)
+	if err != nil {
+		t.Fatalf("parseSyncMessage failed: %v", err)
+	}
+	if syncType != messageYjsUpdate {
+		t.Fatalf("expected syncType %d, got %d", messageYjsUpdate, syncType)
+	}
+	if !bytes.Equal(innerPayload, payload) {
+		t.Fatalf("payload mismatch: got %v, want %v", innerPayload, payload)
+	}
+}
+
+func TestWsDiskStoreTwoClientSync(t *testing.T) {
+	ts := newDiskTestServer(t)
+	roomname := "disk-two-client"
+
+	clientA := ts.dial(t, roomname)
+	clientB := ts.dial(t, roomname)
+	time.Sleep(100 * time.Millisecond)
+
+	payload := []byte("disk-update-from-A")
+	clientA.sendSyncUpdate(payload)
+
+	msg, ok := clientB.recv(2 * time.Second)
+	if !ok {
+		t.Fatalf("client B timed out waiting for message")
+	}
+
+	syncType, innerPayload, err := parseSyncMessage(msg)
+	if err != nil {
+		t.Fatalf("parseSyncMessage failed: %v", err)
+	}
+	if syncType != messageYjsUpdate {
+		t.Fatalf("expected syncType %d, got %d", messageYjsUpdate, syncType)
+	}
+	if !bytes.Equal(innerPayload, payload) {
+		t.Fatalf("payload mismatch: got %v, want %v", innerPayload, payload)
+	}
+}
+
 func TestWsReconnectCatchup(t *testing.T) {
 	ts := newTestServer(t)
 	roomname := "reconnect"

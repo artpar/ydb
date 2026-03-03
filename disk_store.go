@@ -74,12 +74,13 @@ func (ds *DiskStore) Append(room YjsRoomName, data []byte) (uint32, error) {
 	path := ds.roomPath(room)
 
 	if ds.maxRoomSize > 0 {
+		var currentSize uint32
 		fi, err := os.Stat(path)
 		if err == nil {
-			currentSize := uint32(fi.Size())
-			if currentSize+uint32(len(data)) > ds.maxRoomSize {
-				return currentSize, fmt.Errorf("room %s exceeds max size %d", room, ds.maxRoomSize)
-			}
+			currentSize = uint32(fi.Size())
+		}
+		if currentSize+uint32(len(data)) > ds.maxRoomSize {
+			return currentSize, fmt.Errorf("room %s exceeds max size %d", room, ds.maxRoomSize)
 		}
 	}
 

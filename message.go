@@ -142,28 +142,53 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 
 	write := &bytes.Buffer{}
 
-	var err error
-	err = writeUvarint(write, messageSync)
-	if err != nil {
+	if err := writeUvarint(write, messageSync); err != nil {
 		return err
 	}
 
 	switch messageType {
 	case messageYjsSyncStep1:
-		payload, _ := readPayload(m)
-		err = writeUvarint(write, messageYjsSyncStep1)
-		err = writePayload(write, payload)
+		payload, err := readPayload(m)
+		if err != nil {
+			return err
+		}
+		if ydb.cfg.MaxMessageSize > 0 && int64(len(payload)) > ydb.cfg.MaxMessageSize {
+			return fmt.Errorf("sync step1 payload exceeds max message size (%d > %d)", len(payload), ydb.cfg.MaxMessageSize)
+		}
+		if err := writeUvarint(write, messageYjsSyncStep1); err != nil {
+			return err
+		}
+		if err := writePayload(write, payload); err != nil {
+			return err
+		}
 	case messageYjsSyncStep2:
-		payload, _ := readPayload(m)
-		err = writeUvarint(write, messageYjsSyncStep2)
-		err = writePayload(write, payload)
+		payload, err := readPayload(m)
+		if err != nil {
+			return err
+		}
+		if ydb.cfg.MaxMessageSize > 0 && int64(len(payload)) > ydb.cfg.MaxMessageSize {
+			return fmt.Errorf("sync step2 payload exceeds max message size (%d > %d)", len(payload), ydb.cfg.MaxMessageSize)
+		}
+		if err := writeUvarint(write, messageYjsSyncStep2); err != nil {
+			return err
+		}
+		if err := writePayload(write, payload); err != nil {
+			return err
+		}
 	case messageYjsUpdate:
-		payload, _ := readPayload(m)
-		err = writeUvarint(write, messageYjsUpdate)
-		err = writePayload(write, payload)
-	}
-	if err != nil {
-		return err
+		payload, err := readPayload(m)
+		if err != nil {
+			return err
+		}
+		if ydb.cfg.MaxMessageSize > 0 && int64(len(payload)) > ydb.cfg.MaxMessageSize {
+			return fmt.Errorf("update payload exceeds max message size (%d > %d)", len(payload), ydb.cfg.MaxMessageSize)
+		}
+		if err := writeUvarint(write, messageYjsUpdate); err != nil {
+			return err
+		}
+		if err := writePayload(write, payload); err != nil {
+			return err
+		}
 	}
 
 	ydb.updateRoom(session.roomname, session, write.Bytes())

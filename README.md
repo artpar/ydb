@@ -98,7 +98,7 @@ http.ListenAndServe(":8080", nil)
 
 ## Testing
 
-The project includes a comprehensive test suite (38 tests + 4 benchmarks):
+The project includes a comprehensive test suite (42 tests + 4 benchmarks):
 
 ```bash
 # Unit + integration tests with race detector
@@ -112,10 +112,11 @@ go test -bench=. -benchmem ./...
 ```
 
 Test categories:
-- **DiskStore** (9 tests) — append, read, offsets, size limits, concurrency, initial content
+- **DiskStore** (10 tests) — append, read, offsets, size limits (including first-write), concurrency, initial content
 - **LocalBroadcaster** (8 tests) — pub/sub, sender exclusion, fanout, slow subscriber drop, cross-room isolation
-- **Ydb core** (7 tests) — concurrent room creation, session lifecycle, room reaper, store persistence, catch-up
-- **Integration** (6 tests) — full WebSocket stack: single/multi client sync, late joiner catch-up, disconnect cleanup, room isolation, reconnect
+- **Ydb core** (9 tests) — concurrent room creation, session lifecycle, room reaper, store persistence, catch-up, max room size enforcement, oversized message rejection
+- **Integration** (8 tests) — full WebSocket stack: single/multi client sync, late joiner catch-up, disconnect cleanup, room isolation, reconnect, DiskStore integration
+- **Client** (3 tests) — send/receive, multiple updates, old API protocol compatibility
 - **Stress** (4 tests) — 100 clients x 1 room, 50 rooms x 5 clients, rapid connect/disconnect, 1MB payloads
 - **Benchmarks** (4) — DiskStore append (sequential + parallel), broadcaster fanout with 100 subscribers, room lookup throughput
 

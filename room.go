@@ -35,6 +35,19 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 		return
 	}
 
+	// Enforce max room size at core level (protects all Store implementations)
+	if ydb.cfg.MaxRoomSize > 0 {
+		currentSize, err := ydb.store.Size(roomname)
+		if err != nil {
+			log.Printf("Failed to check room size: %v", err)
+			return
+		}
+		if currentSize+uint32(pendingWrite.Len()) > ydb.cfg.MaxRoomSize {
+			log.Printf("Room %s would exceed max size %d (current: %d, write: %d)", roomname, ydb.cfg.MaxRoomSize, currentSize, pendingWrite.Len())
+			return
+		}
+	}
+
 	// Persist outside room mutex — per-room store mutex handles concurrency
 	newOffset, err := ydb.store.Append(roomname, pendingWrite.Bytes())
 	if err != nil {

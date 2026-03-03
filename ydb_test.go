@@ -179,6 +179,72 @@ func TestUpdateRoomPersistsToStore(t *testing.T) {
 	}
 }
 
+func TestUpdateRoomRejectsOversizedRoom(t *testing.T) {
+	store := newMemoryStore()
+	broadcaster := NewLocalBroadcaster(64)
+	cfg := DefaultConfig()
+	cfg.MaxRoomSize = 100
+	ydbInstance := InitYdb(store, broadcaster, cfg)
+	defer ydbInstance.Close()
+
+	roomname := YjsRoomName("size-limited-room")
+	s := ydbInstance.createSession(string(roomname))
+
+	// Build a payload that will exceed MaxRoomSize
+	bigPayload := make([]byte, 80)
+	for i := range bigPayload {
+		bigPayload[i] = 'A'
+	}
+	msgBuf := &bytes.Buffer{}
+	writeUvarint(msgBuf, messageSync)
+	writeUvarint(msgBuf, messageYjsUpdate)
+	writePayload(msgBuf, bigPayload)
+
+	// First write succeeds
+	ydbInstance.updateRoom(roomname, s, msgBuf.Bytes())
+	size, _ := store.Size(roomname)
+	if size == 0 {
+		t.Fatalf("first write should succeed")
+	}
+
+	// Second write should be rejected (would exceed MaxRoomSize)
+	sizeBefore, _ := store.Size(roomname)
+	ydbInstance.updateRoom(roomname, s, msgBuf.Bytes())
+	sizeAfter, _ := store.Size(roomname)
+	if sizeAfter != sizeBefore {
+		t.Fatalf("second write should be rejected: size went from %d to %d (max %d)", sizeBefore, sizeAfter, cfg.MaxRoomSize)
+	}
+}
+
+func TestReadUpdateMessageRejectsOversized(t *testing.T) {
+	store := newMemoryStore()
+	broadcaster := NewLocalBroadcaster(64)
+	cfg := DefaultConfig()
+	cfg.MaxMessageSize = 50
+	ydbInstance := InitYdb(store, broadcaster, cfg)
+	defer ydbInstance.Close()
+
+	s := ydbInstance.createSession("testroom")
+
+	// Build a message with payload larger than MaxMessageSize
+	bigPayload := make([]byte, 100)
+	msgBuf := &bytes.Buffer{}
+	writeUvarint(msgBuf, messageSync)
+	writeUvarint(msgBuf, messageYjsUpdate)
+	writePayload(msgBuf, bigPayload)
+
+	err := ydbInstance.readMessage(msgBuf, s)
+	if err == nil {
+		t.Fatalf("expected error for oversized message")
+	}
+
+	// Store should be empty — nothing persisted
+	size, _ := store.Size(YjsRoomName("testroom"))
+	if size != 0 {
+		t.Fatalf("oversized message should not be persisted, store size=%d", size)
+	}
+}
+
 func TestSubscribeRoomCatchup(t *testing.T) {
 	store := newMemoryStore()
 	broadcaster := NewLocalBroadcaster(64)
