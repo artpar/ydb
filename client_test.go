@@ -1,91 +1,108 @@
 package ydb
 
 import (
-	"sync"
+	"bytes"
 	"testing"
 	"time"
 )
 
-const testEndpoint = ":9999"
-const testroom = "testroom"
+func TestClientSendAndReceive(t *testing.T) {
+	ts := newTestServer(t)
+	roomname := "client-test"
 
-func createTestClient() (client *client) {
-	client = newClient()
-	client.Connect("ws://localhost:9999/ws")
-	client.Subscribe(subDefinition{testroom, 0, 0})
-	return
-}
+	// Use testWsClient to verify the full client->server->client flow
+	clientA := ts.dial(t, roomname)
+	clientB := ts.dial(t, roomname)
+	time.Sleep(100 * time.Millisecond)
 
-func TestClientSubscribeUpdate(t *testing.T) {
-	createYdbTest(func(ydbInstance *Ydb) {
-		p := 247
-		runTest := func(seed int, wg *sync.WaitGroup) {
-			client := createTestClient()
-			client.UpdateRoom(testroom, []byte{byte(seed)})
-			client.WaitForConfs()
-			for {
-				roomdata := client.rooms[testroom]
-				if len(roomdata.data) == p {
-					break
-				}
-				time.Sleep(time.Millisecond * 100)
-			}
-			wg.Done()
-		}
-		wg := new(sync.WaitGroup)
-		wg.Add(int(p))
-		for i := 0; i < p; i++ {
-			go runTest(i, wg)
-		}
-		wg.Wait()
-	})
-}
+	payload := []byte("client-update")
+	clientA.sendSyncUpdate(payload)
 
-/*
-
-
-
-func TestClientSubscribeUpdate(t *testing.T) {
-	dir := "_ydb_conn_test"
-	os.RemoveAll(dir)
-	InitYdb(dir)
-	runSocketListener(":9999")
-	client1 := createTestClient()
-	client2 := createTestClient()
-	client1.update(testroom, "1")
-	client2.update(testroom, "2")
-	waitForConfs(client1, client2)
-	if client1.get(testroom) != client2.get(testroom) || len(client1.get(testroom)) != 2 {
-		t.Errorf("Expecting both clients to have the same content")
+	msg, ok := clientB.recv(2 * time.Second)
+	if !ok {
+		t.Fatalf("client B timed out waiting for update")
 	}
-	os.RemoveAll(dir)
-}
 
-
-func initTestClients(numberOfClients int, f func(clients []*client)) {
-	dir := "_ydb_conn_test"
-	os.RemoveAll(dir)
-	InitYdb(dir)
-	setupWebsocketsListener(":9999")
-	conns := make([]*client, numberOfClients)
-	for i := 0; i < numberOfClients; i++ {
-		c := newClient()
-		c.connect(testEndpoint)
-		c.subscribe("test", 0)
-		conns[i] = c
+	syncType, innerPayload, err := parseSyncMessage(msg)
+	if err != nil {
+		t.Fatalf("parseSyncMessage failed: %v", err)
 	}
-	f(conns)
-	os.RemoveAll(dir)
+	if syncType != messageYjsUpdate {
+		t.Fatalf("expected syncType %d, got %d", messageYjsUpdate, syncType)
+	}
+	if !bytes.Equal(innerPayload, payload) {
+		t.Fatalf("payload mismatch: got %v, want %v", innerPayload, payload)
+	}
 }
 
-func TestWriteRoomDataAfterSubscription(t *testing.T) {
-	initTestClients(2, func(clients []*client) {
-		clients[0].updateRoomData("test", []byte{7})
-		waitForConnConfs(clients...)
-		compareClients(t, clients[0], conns[1])
-		if len(clients[0].roomData["test"]) != 1 || conns[0].roomData["test"][0] != 7 {
-			t.Error("not expected result")
+func TestClientMultipleUpdates(t *testing.T) {
+	ts := newTestServer(t)
+	roomname := "multi-update"
+
+	clientA := ts.dial(t, roomname)
+	clientB := ts.dial(t, roomname)
+	time.Sleep(100 * time.Millisecond)
+
+	payloads := [][]byte{
+		[]byte("update-1"),
+		[]byte("update-2"),
+		[]byte("update-3"),
+	}
+
+	for _, p := range payloads {
+		clientA.sendSyncUpdate(p)
+	}
+
+	received := clientB.recvAll(time.Second)
+	if len(received) < len(payloads) {
+		t.Fatalf("expected at least %d messages, got %d", len(payloads), len(received))
+	}
+
+	for i, msg := range received[:len(payloads)] {
+		_, innerPayload, err := parseSyncMessage(msg)
+		if err != nil {
+			t.Fatalf("message %d: parseSyncMessage failed: %v", i, err)
 		}
-	})
+		if !bytes.Equal(innerPayload, payloads[i]) {
+			t.Fatalf("message %d: payload mismatch: got %v, want %v", i, innerPayload, payloads[i])
+		}
+	}
 }
-*/
+
+func TestClientOldApiProtocol(t *testing.T) {
+	// Verify the old client.go API sends correct protocol
+	ts := newTestServer(t)
+	roomname := "old-api"
+
+	// Use testWsClient as receiver
+	receiver := ts.dial(t, roomname)
+	time.Sleep(100 * time.Millisecond)
+
+	// Use old client API to send
+	c := newClient()
+	err := c.Connect(ts.wsURL + "/ws/" + roomname)
+	if err != nil {
+		t.Fatalf("Connect failed: %v", err)
+	}
+	c.currentRoom = YjsRoomName(roomname)
+
+	c.UpdateRoom(YjsRoomName(roomname), []byte("old-api-data"))
+
+	msg, ok := receiver.recv(2 * time.Second)
+	if !ok {
+		t.Fatalf("receiver timed out")
+	}
+
+	syncType, payload, err := parseSyncMessage(msg)
+	if err != nil {
+		t.Fatalf("parseSyncMessage failed: %v", err)
+	}
+	if syncType != messageYjsUpdate {
+		t.Fatalf("expected syncType %d, got %d", messageYjsUpdate, syncType)
+	}
+	if !bytes.Equal(payload, []byte("old-api-data")) {
+		t.Fatalf("payload mismatch: got %v", payload)
+	}
+
+	c.Disconnect()
+}

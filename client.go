@@ -3,7 +3,6 @@ package ydb
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -25,6 +24,8 @@ type client struct {
 	nextExpectedConfirmation uint64
 	nextConfirmationNumber   uint64
 	rooms                    map[YjsRoomName]roomstate
+	currentRoom              YjsRoomName
+	closeOnce                sync.Once
 }
 
 func newClient() *client {
@@ -43,22 +44,17 @@ func (client *client) readMessage(message []byte) error {
 		if err != nil {
 			return err
 		}
-		confirmation, err := binary.ReadUvarint(buf)
+		_, err = binary.ReadUvarint(buf) // syncSubType
 		if err != nil {
 			return err
 		}
-		roomname, err := readRoomname(buf)
+		payload, err := readPayload(buf)
 		if err != nil {
 			return err
 		}
-		bytes, err := readPayload(buf)
-		if err != nil {
-			return err
-		}
-		room := client.rooms[roomname]
-		room.data = append(room.data, bytes...)
-		client.rooms[roomname] = room
-		client.send <- createMessageConfirmation(confirmation)
+		room := client.rooms[client.currentRoom]
+		room.data = append(room.data, payload...)
+		client.rooms[client.currentRoom] = room
 	case messageConfirmation:
 		if err != nil {
 			return err
@@ -83,33 +79,28 @@ func (client *client) WaitForConfs() {
 
 func (client *client) Connect(url string) (err error) {
 	if client.conn == nil {
+		client.closeOnce = sync.Once{}
 		client.closedWG = sync.WaitGroup{}
 		client.closedWG.Add(2)
 		client.conn, _, err = websocket.DefaultDialer.Dial(url, nil)
-		doneReading := make(chan struct{}, 0)
+		if err != nil {
+			return err
+		}
+		doneReading := make(chan struct{})
 		// read pump
 		go func() {
 			defer func() {
 				client.closedWG.Done()
-				close(doneReading)
 			}()
 			for {
-				if client.conn == nil {
-					fmt.Println("Empty conn when reading, client prematurely disconnected")
-				}
-				messageType, message, err := client.conn.ReadMessage()
+				_, message, err := client.conn.ReadMessage()
 				if err != nil {
-					fmt.Printf("ydb-client error: %s\n", err)
+					client.closeOnce.Do(func() { close(client.send) })
 					close(doneReading)
-					client.Disconnect()
-					break
+					return
 				}
-				if messageType == websocket.BinaryMessage {
-					err := client.readMessage(message)
-					if err != nil {
-						log.Printf("failed to ready message from client: %v - %v", err, message)
-						continue
-					}
+				if rerr := client.readMessage(message); rerr != nil {
+					log.Printf("failed to read message from client: %v - %v", rerr, message)
 				}
 			}
 		}()
@@ -120,17 +111,9 @@ func (client *client) Connect(url string) (err error) {
 				client.closedWG.Done()
 			}()
 			for m := range client.send {
-				fmt.Println("debug: write message to server: ", m)
-				if client.conn == nil {
-					fmt.Println("Empty conn when writing, client prematurely disconnected")
-				}
 				client.conn.WriteMessage(websocket.BinaryMessage, m)
 			}
-			err := client.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("ydb-client error: error while closing conn", err)
-				return
-			}
+			client.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			select {
 			case <-doneReading:
 			case <-time.After(time.Second):
@@ -142,7 +125,7 @@ func (client *client) Connect(url string) (err error) {
 
 func (client *client) Disconnect() {
 	if client.conn != nil {
-		close(client.send)
+		client.closeOnce.Do(func() { close(client.send) })
 		client.closedWG.Wait()
 		client.conn.Close()
 		client.conn = nil
@@ -150,6 +133,9 @@ func (client *client) Disconnect() {
 }
 
 func (client *client) Subscribe(subs ...subDefinition) {
+	if len(subs) > 0 {
+		client.currentRoom = subs[0].roomname
+	}
 	conf := client.nextConfirmationNumber
 	m := createMessageSubscribe(conf, subs...)
 	client.unconfirmed[conf] = m
@@ -158,12 +144,9 @@ func (client *client) Subscribe(subs ...subDefinition) {
 }
 
 func (client *client) UpdateRoom(roomname YjsRoomName, data []byte) {
-	conf := client.nextConfirmationNumber
-	m := createMessageUpdate(roomname, conf, data)
+	m := createMessageUpdate(roomname, 0, data)
 	roomstate := client.rooms[roomname]
 	roomstate.data = append(roomstate.data, data...)
 	client.rooms[roomname] = roomstate
-	client.unconfirmed[conf] = m
-	client.nextConfirmationNumber++
 	client.send <- m
 }

@@ -3,8 +3,6 @@ package ydb
 import (
 	"flag"
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	"io/ioutil"
 	"os"
 )
 
@@ -24,7 +22,7 @@ func cliParseStart(args []string) {
 		os.Exit(1)
 	}
 	if *tmp && *dir == "" {
-		tmpdir, err := ioutil.TempDir("", "ydb")
+		tmpdir, err := os.MkdirTemp("", "ydb")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "ydb: unable to create temporary directory")
 			os.Exit(1)
@@ -44,16 +42,11 @@ func cliParseStart(args []string) {
 		os.Exit(1)
 	}
 
-	documentProvider := NewDiskDocumentProvider(*dir, 1000, DocumentListener{
-		GetDocumentInitialContent: func(s string, tx *sqlx.Tx) []byte {
-			return []byte{}
-		},
-		SetDocumentInitialContent: func(s string, tx *sqlx.Tx, bytes []byte) {
-
-		},
-	})
-	var sessionIdFetcher SessionIdFetcher
-	ydbInstance := InitYdb(documentProvider, sessionIdFetcher)
+	cfg := DefaultConfig()
+	store := NewDiskStore(*dir, WithMaxRoomSize(cfg.MaxRoomSize))
+	broadcaster := NewLocalBroadcaster(cfg.BroadcastBuffer)
+	ydbInstance := InitYdb(store, broadcaster, cfg)
+	defer ydbInstance.Close()
 	setupWebsocketsListener(":8899", ydbInstance)
 }
 
@@ -67,7 +60,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "   stats     Print live stats about a Ydb instance\n")
 	}
 	if *version {
-		fmt.Println("ydb version 0.0.0") // TODO
+		fmt.Println("ydb version 0.0.0")
 		return
 	}
 	flag.Parse()

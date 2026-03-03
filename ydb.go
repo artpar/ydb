@@ -1,28 +1,24 @@
 package ydb
 
 import (
-	"errors"
-	"fmt"
-	"github.com/jmoiron/sqlx"
 	"math/rand"
-	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Ydb maintains rooms and connections
 type Ydb struct {
-	roomsMux sync.RWMutex
-	rooms    map[YjsRoomName]*room
-	// TODO: use guid instead of uint64
-	sessionsMux      sync.Mutex
-	sessions         map[uint64]*session
-	seed             *rand.Rand
-	seedMux          sync.Mutex
-	documentProvider DocumentProvider
-	sessionIdFetcher SessionIdFetcher
+	roomsMux    sync.RWMutex
+	rooms       map[YjsRoomName]*room
+	sessionsMux sync.Mutex
+	sessions    map[uint64]*session
+	seed        *rand.Rand
+	seedMux     sync.Mutex
+	store       Store
+	broadcaster Broadcaster
+	cfg         Config
+	done        chan struct{}
 }
 
 func (ydb *Ydb) genUint32() uint32 {
@@ -39,21 +35,30 @@ func (ydb *Ydb) genUint64() uint64 {
 	return n
 }
 
-func InitYdb(documentProvider DocumentProvider, fetcher SessionIdFetcher) *Ydb {
-	// remember to update UnsafeClearAllYdbContent when updating here
-	ydb := Ydb{
-		rooms:    make(map[YjsRoomName]*room, 1000),
-		sessions: make(map[uint64]*session),
-		//fswriter:         newFSWriter(dir, 1000, 10), // TODO: have command line arguments for this
-		documentProvider: documentProvider, // TODO: have command line arguments for this
-		seed:             rand.New(rand.NewSource(time.Now().UnixNano())),
-		sessionIdFetcher: fetcher,
+func InitYdb(store Store, broadcaster Broadcaster, cfgs ...Config) *Ydb {
+	cfg := DefaultConfig()
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
 	}
-	return &ydb
+	ydb := &Ydb{
+		rooms:       make(map[YjsRoomName]*room, 1000),
+		sessions:    make(map[uint64]*session),
+		seed:        rand.New(rand.NewSource(time.Now().UnixNano())),
+		store:       store,
+		broadcaster: broadcaster,
+		cfg:         cfg,
+		done:        make(chan struct{}),
+	}
+	go ydb.roomReaper()
+	return ydb
 }
 
-// GetYjsRoom from the global ydb instance. safe for parallel access.
-func (ydb *Ydb) GetYjsRoom(name YjsRoomName, tx *sqlx.Tx) *room {
+func (ydb *Ydb) Close() {
+	close(ydb.done)
+}
+
+// getOrCreateRoom returns existing room or creates a new one, reading offset from store.
+func (ydb *Ydb) getOrCreateRoom(name YjsRoomName) *room {
 	ydb.roomsMux.RLock()
 	r := ydb.rooms[name]
 	ydb.roomsMux.RUnlock()
@@ -63,10 +68,10 @@ func (ydb *Ydb) GetYjsRoom(name YjsRoomName, tx *sqlx.Tx) *room {
 		if r == nil {
 			r = ydb.newRoom()
 			ydb.rooms[name] = r
-			r.mux.Lock()
 			ydb.roomsMux.Unlock()
-			// read room offset..
-			r.offset = ydb.documentProvider.ReadRoomSize(name, tx)
+			size, _ := ydb.store.Size(name)
+			r.mux.Lock()
+			r.offset = size
 			r.mux.Unlock()
 		} else {
 			ydb.roomsMux.Unlock()
@@ -81,57 +86,61 @@ func (ydb *Ydb) getSession(sessionid uint64) *session {
 	return ydb.sessions[sessionid]
 }
 
-func (ydb *Ydb) createSession(roomname string, tx *sqlx.Tx) (s *session) {
+func (ydb *Ydb) createSession(roomname string) *session {
 	ydb.sessionsMux.Lock()
 	sessionid := ydb.genUint64()
 	if _, ok := ydb.sessions[sessionid]; ok {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
-	s = newSession(sessionid, roomname)
-	_ = ydb.documentProvider.GetDocument(YjsRoomName(roomname), tx)
+	s := newSession(sessionid, roomname)
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s
 }
 
-func (ydb *Ydb) removeSession(sessionid uint64) (err error) {
+func (ydb *Ydb) removeSession(sessionid uint64) {
 	ydb.sessionsMux.Lock()
-	session, ok := ydb.sessions[sessionid]
-	if !ok {
-		err = fmt.Errorf("tried to close session %d, but session does not exist", sessionid)
-	} else if len(session.conns) > 0 || session.conn != nil {
-		err = errors.New("Cannot close this session because conns are still using it")
-	} else {
-		delete(ydb.sessions, sessionid)
-	}
+	delete(ydb.sessions, sessionid)
 	ydb.sessionsMux.Unlock()
-	return
 }
 
-type SessionIdFetcher interface {
-	GetSessionId(r *http.Request, roomname string) uint64
-}
-
-// TODO: refactor/remove..
-func removeFSWriteDirContent(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	d.Chmod(0777)
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
-	debug("read dir names")
-	for _, name := range names {
-		os.Chmod(filepath.Join(dir, name), 0777)
-		err = os.Remove(filepath.Join(dir, name))
-		debug("removed a file")
-		if err != nil {
-			return err
+func (ydb *Ydb) roomReaper() {
+	ticker := time.NewTicker(ydb.cfg.RoomReapInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ydb.done:
+			return
+		case <-ticker.C:
+			ydb.reapIdleRooms()
 		}
 	}
-	return nil
+}
+
+func (ydb *Ydb) reapIdleRooms() {
+	now := time.Now()
+	ydb.roomsMux.RLock()
+	var toRemove []YjsRoomName
+	for name, r := range ydb.rooms {
+		if atomic.LoadInt32(&r.subCount) == 0 {
+			r.mux.Lock()
+			idle := now.Sub(r.lastActive) > ydb.cfg.RoomIdleTimeout
+			r.mux.Unlock()
+			if idle {
+				toRemove = append(toRemove, name)
+			}
+		}
+	}
+	ydb.roomsMux.RUnlock()
+
+	if len(toRemove) > 0 {
+		ydb.roomsMux.Lock()
+		for _, name := range toRemove {
+			r := ydb.rooms[name]
+			if r != nil && atomic.LoadInt32(&r.subCount) == 0 {
+				delete(ydb.rooms, name)
+			}
+		}
+		ydb.roomsMux.Unlock()
+	}
 }

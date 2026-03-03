@@ -12,28 +12,17 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 50 * time.Second // TODO: make this configurable
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 50 * time.Second // TODO: make this configurable
-
-	// Send pings to peer with this period. Must be less than pongWait.
+	writeWait  = 50 * time.Second
+	pongWait   = 50 * time.Second
 	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 10000000
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // TODO: implement origin checking
+		return true
 	},
-}
-
-type wsServer struct {
 }
 
 type wsConn struct {
@@ -44,26 +33,26 @@ type wsConn struct {
 	closeWritePump chan struct{}
 }
 
-func newWsConn(session *session, conn *websocket.Conn, ydbi *Ydb) *wsConn {
+func newWsConn(session *session, conn *websocket.Conn, ydb *Ydb) *wsConn {
 	return &wsConn{
 		conn:           conn,
 		session:        session,
-		ydb:            ydbi,
-		send:           make(chan *websocket.PreparedMessage, 5),
-		closeWritePump: make(chan struct{}, 0),
+		ydb:            ydb,
+		send:           make(chan *websocket.PreparedMessage, ydb.cfg.SendBufferSize),
+		closeWritePump: make(chan struct{}),
 	}
 }
 
 func (wsConn *wsConn) WriteMessage(m []byte, pm *websocket.PreparedMessage) {
 	defer func() {
-		recover() // recover if channel is already closed
+		recover()
 	}()
 	debugMessageType("sending message to client..", m)
 	wsConn.send <- pm
 }
 
 func (wsConn *wsConn) readPump() {
-	wsConn.conn.SetReadLimit(maxMessageSize)
+	wsConn.conn.SetReadLimit(wsConn.ydb.cfg.MaxMessageSize)
 	wsConn.conn.SetReadDeadline(time.Now().Add(pongWait))
 	wsConn.conn.SetPongHandler(func(string) error {
 		wsConn.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -79,7 +68,7 @@ func (wsConn *wsConn) readPump() {
 		}
 		mbuffer := bytes.NewBuffer(message)
 		for {
-			err := wsConn.ydb.readMessage(mbuffer, wsConn.session, nil)
+			err := wsConn.ydb.readMessage(mbuffer, wsConn.session)
 			if err != nil {
 				break
 			}
@@ -88,7 +77,6 @@ func (wsConn *wsConn) readPump() {
 	close(wsConn.closeWritePump)
 	wsConn.conn.Close()
 	debug("ending read pump for ws conn")
-	// TODO: unregister conn from ydb
 }
 
 func (wsConn *wsConn) writePump() {
@@ -97,7 +85,7 @@ func (wsConn *wsConn) writePump() {
 	defer func() {
 		debug("ending write pump for ws conn")
 		ticker.Stop()
-		wsConn.session.removeConn(wsConn, wsConn.ydb)
+		wsConn.session.removeConn(wsConn.ydb)
 		close(wsConn.send)
 		conn.Close()
 	}()
@@ -108,7 +96,6 @@ func (wsConn *wsConn) writePump() {
 		case message, ok := <-wsConn.send:
 			conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The hub closed the channel.
 				conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -144,17 +131,12 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			fmt.Printf("error: error upgrading client %s", err.Error())
 			return
 		}
-		var sessionid uint64 // TODO: get the sessionid from http headers
-		var session *session
-		if sessionid == 0 {
-			session = ydbInstance.createSession(roomname, nil)
-		} else {
-			session = ydbInstance.getSession(sessionid)
-		}
-		wsConn := newWsConn(session, conn, ydbInstance)
-		session.add(wsConn)
 
-		go ydbInstance.subscribeRoom(session, uint32(0), nil)
+		session := ydbInstance.createSession(roomname)
+		wsConn := newWsConn(session, conn, ydbInstance)
+		session.setConn(wsConn)
+
+		go ydbInstance.subscribeRoom(session, 0)
 
 		go wsConn.readPump()
 		go wsConn.writePump()
@@ -162,12 +144,6 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 }
 
 func setupWebsocketsListener(addr string, ydbInstance *Ydb) {
-	// TODO: only set this if in testing mode!
-	//http.HandleFunc("/clearAll", func(w http.ResponseWriter, r *http.Request) {
-	//	ydbInstance.UnsafeClearAllYdbContent()
-	//	w.WriteHeader(200)
-	//	fmt.Fprintf(w, "OK")
-	//})
 	http.HandleFunc("/ws", YdbWsConnectionHandler(ydbInstance))
 	err := http.ListenAndServe(addr, nil)
 	if err != nil {

@@ -2,126 +2,97 @@ package ydb
 
 import (
 	"bytes"
-	"fmt"
-	"github.com/jmoiron/sqlx"
 	"log"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type YjsRoomName string
 
-type pendingWrite struct {
-	data    []byte
-	session *session
-	conf    uint64
-}
-
 type room struct {
 	mux           sync.Mutex
-	registered    bool
-	pendingWrites []byte
-	subs          []*session
-	pendingSubs   []pendingSub
-	roomsessionid uint32
 	offset        uint32
+	lastActive    time.Time
+	subCount      int32
+	roomsessionid uint32
 }
 
 func (ydb *Ydb) newRoom() *room {
 	return &room{
-		subs:          nil,
 		roomsessionid: ydb.genUint32(),
-		offset:        0, // TODO: all available rooms should be initialized with offset when Ydb initializes
+		lastActive:    time.Now(),
 	}
 }
 
-func (ydb *Ydb) modifyRoom(roomname YjsRoomName, f func(room *room) (modified bool), tx *sqlx.Tx) {
-	room := ydb.GetYjsRoom(roomname, tx)
-	var register bool
-	room.mux.Lock()
-	// try to clean up subs
-	needsCleanup := false
-	for _, s := range room.subs {
-		if s.conn == nil {
-			needsCleanup = true
-			break
-		}
+// updateRoom persists data to store, updates room offset, and broadcasts to subscribers.
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
+	// Frame data for storage
+	pendingWrite := &bytes.Buffer{}
+	err := writePayload(pendingWrite, bs)
+	if err != nil {
+		log.Printf("Failed to create payload: %v", err)
+		return
 	}
-	if needsCleanup {
-		var newSubs []*session
-		for _, s := range room.subs {
-			if s.conn != nil {
-				newSubs = append(newSubs, s)
+
+	// Persist outside room mutex — per-room store mutex handles concurrency
+	newOffset, err := ydb.store.Append(roomname, pendingWrite.Bytes())
+	if err != nil {
+		log.Printf("Failed to append to store: %v", err)
+		return
+	}
+
+	// Update cached offset under room mutex (fast, no I/O)
+	r := ydb.getOrCreateRoom(roomname)
+	r.mux.Lock()
+	r.offset = newOffset
+	r.lastActive = time.Now()
+	r.mux.Unlock()
+
+	// Fan out to other subscribers
+	ydb.broadcaster.Publish(roomname, session.sessionid, bs)
+}
+
+// subscribeRoom subscribes a session to a room, catching up from the store first.
+func (ydb *Ydb) subscribeRoom(session *session, offset uint32) {
+	roomname := session.roomname
+
+	// Subscribe first — starts buffering broadcast messages immediately
+	broadcastCh, err := ydb.broadcaster.Subscribe(roomname, session.sessionid)
+	if err != nil {
+		log.Printf("Failed to subscribe to broadcaster: %v", err)
+		return
+	}
+
+	r := ydb.getOrCreateRoom(roomname)
+	atomic.AddInt32(&r.subCount, 1)
+	r.mux.Lock()
+	r.lastActive = time.Now()
+	r.mux.Unlock()
+
+	// Catch-up from store
+	data, currentOffset, err := ydb.store.ReadFrom(roomname, offset)
+	if err != nil {
+		log.Printf("Failed to read from store for room %s: %v", roomname, err)
+	}
+
+	if len(data) > 0 {
+		dataReader := bytes.NewReader(data)
+		for {
+			payload, err := readPayload(dataReader)
+			if err != nil {
+				break
 			}
-		}
-		room.subs = newSubs
-	}
-
-	modified := f(room)
-	if room.registered == false && modified {
-		register = true
-		room.registered = true
-	}
-	room.mux.Unlock()
-	if register {
-		ydb.documentProvider.RegisterRoomUpdate(room, roomname, tx)
-	}
-}
-
-// update in-memory buffer of writable data. Registers in fswriter if new data is available.
-// Writes to buffer until fswriter owns the buffer.
-func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte, tx *sqlx.Tx) {
-	debug("trying to update room")
-	ydb.modifyRoom(roomname, func(room *room) bool {
-		debug("updating room")
-		//fmt.Printf("Payload: %v - %v", bs, base64.StdEncoding.EncodeToString(bs))
-
-		pendingWrite := &bytes.Buffer{}
-		err := writePayload(pendingWrite, bs)
-		if err != nil {
-			log.Printf("Failed to create payload: %v", err)
-		}
-
-		room.pendingWrites = append(room.pendingWrites, pendingWrite.Bytes()...)
-
-		room.offset += uint32(len(bs))
-		debug(fmt.Sprintf("updating room .. number of subs: %d", len(room.subs)))
-		for _, s := range room.subs {
-			if s != session {
-				s.sendUpdate(roomname, bs, uint64(room.offset))
-			}
-		}
-		debug("updating room .. wrote update to all sessions but sender")
-		//session.sendHostUnconfirmedByClient(clientConf, uint64(room.offset))
-		debug("updating room .. sent conf to client")
-		return true
-	}, tx)
-	debug("done updating room")
-}
-
-type pendingSub struct {
-	session *session
-	offset  uint32
-}
-
-func (room *room) hasSession(session *session) bool {
-	for _, s := range room.subs {
-		if s == session {
-			return true
+			session.sendUpdate(roomname, payload, uint64(currentOffset))
 		}
 	}
-	return false
-}
 
-func (ydb *Ydb) subscribeRoom(session *session, offset uint32, tx *sqlx.Tx) {
-	ydb.modifyRoom(session.roomname, func(room *room) bool {
-		if !room.hasSession(session) {
-			if room.offset != offset {
-				room.pendingSubs = append(room.pendingSubs, pendingSub{session, offset})
-				return true
-			}
-			room.subs = append(room.subs, session)
-			// session.sendConfirmedByHost(YjsRoomName, uint64(offset))
+	// Forward broadcast messages to session
+	go func() {
+		for msg := range broadcastCh {
+			session.sendUpdate(roomname, msg, 0)
 		}
-		return false // whether room data needs to access fswriter
-	}, tx)
+		// Channel closed — unsubscribed
+		atomic.AddInt32(&r.subCount, -1)
+	}()
 }
