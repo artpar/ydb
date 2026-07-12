@@ -98,10 +98,10 @@ func (mc *mockConn) getMessages() [][]byte {
 // --- testServer ---
 
 type testServer struct {
-	ydb        *Ydb
-	httpServer *httptest.Server
-	wsURL      string
-	store      Store
+	ydb         *Ydb
+	httpServer  *httptest.Server
+	wsURL       string
+	store       Store
 	broadcaster Broadcaster
 }
 
@@ -145,6 +145,9 @@ func newTestServerWithComponents(t *testing.T, store Store, broadcaster Broadcas
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws/", YdbWsConnectionHandler(ydbInstance))
+	mux.HandleFunc("/readonly/", func(w http.ResponseWriter, r *http.Request) {
+		YdbWsConnectionHandler(ydbInstance)(w, r.WithContext(WithReadOnlySession(r.Context())))
+	})
 
 	server := httptest.NewServer(mux)
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
@@ -175,7 +178,15 @@ type testWsClient struct {
 }
 
 func (ts *testServer) dial(t *testing.T, roomname string) *testWsClient {
-	url := ts.wsURL + "/ws/" + roomname
+	return ts.dialPath(t, "/ws/", roomname)
+}
+
+func (ts *testServer) dialReadOnly(t *testing.T, roomname string) *testWsClient {
+	return ts.dialPath(t, "/readonly/", roomname)
+}
+
+func (ts *testServer) dialPath(t *testing.T, path string, roomname string) *testWsClient {
+	url := ts.wsURL + path + roomname
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		t.Fatalf("failed to dial %s: %v", url, err)

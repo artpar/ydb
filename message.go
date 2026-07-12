@@ -191,6 +191,10 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 		}
 	}
 
+	if session.readOnly {
+		return nil
+	}
+
 	ydb.updateRoom(session.roomname, session, write.Bytes())
 	return nil
 }

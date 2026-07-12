@@ -117,6 +117,48 @@ func TestWsLateJoinerCatchup(t *testing.T) {
 	}
 }
 
+func TestWsReadOnlyClientReceivesUpdatesButCannotWrite(t *testing.T) {
+	ts := newTestServer(t)
+	roomname := "read-only-client"
+
+	writer := ts.dial(t, roomname)
+	firstPayload := []byte("existing-update")
+	writer.sendSyncUpdate(firstPayload)
+	waitFor(t, 2*time.Second, func() bool {
+		size, _ := ts.store.Size(YjsRoomName(roomname))
+		return size > 0
+	})
+
+	readOnly := ts.dialReadOnly(t, roomname)
+	msg, ok := readOnly.recv(2 * time.Second)
+	if !ok {
+		t.Fatal("read-only client timed out waiting for catch-up")
+	}
+	_, payload, err := parseSyncMessage(msg)
+	if err != nil || !bytes.Equal(payload, firstPayload) {
+		t.Fatalf("read-only catch-up mismatch: payload=%v err=%v", payload, err)
+	}
+
+	sizeBefore, _ := ts.store.Size(YjsRoomName(roomname))
+	readOnly.sendSyncUpdate([]byte("must-not-persist"))
+	time.Sleep(100 * time.Millisecond)
+	sizeAfter, _ := ts.store.Size(YjsRoomName(roomname))
+	if sizeAfter != sizeBefore {
+		t.Fatalf("read-only update changed store size from %d to %d", sizeBefore, sizeAfter)
+	}
+
+	secondPayload := []byte("later-update")
+	writer.sendSyncUpdate(secondPayload)
+	msg, ok = readOnly.recv(2 * time.Second)
+	if !ok {
+		t.Fatal("read-only connection closed after attempted update")
+	}
+	_, payload, err = parseSyncMessage(msg)
+	if err != nil || !bytes.Equal(payload, secondPayload) {
+		t.Fatalf("read-only broadcast mismatch: payload=%v err=%v", payload, err)
+	}
+}
+
 func TestWsDisconnectCleanup(t *testing.T) {
 	ts := newTestServer(t)
 	roomname := "disconnect"

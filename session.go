@@ -76,12 +76,18 @@ type session struct {
 	clientConfirmation clientConfirmation
 	sessionid          uint64
 	roomname           YjsRoomName
+	readOnly           bool
 }
 
 func newSession(sessionid uint64, roomname string) *session {
+	return newSessionWithAccess(sessionid, roomname, false)
+}
+
+func newSessionWithAccess(sessionid uint64, roomname string, readOnly bool) *session {
 	return &session{
 		sessionid: sessionid,
 		roomname:  YjsRoomName(roomname),
+		readOnly:  readOnly,
 	}
 }
 

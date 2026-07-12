@@ -132,7 +132,7 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			return
 		}
 
-		session := ydbInstance.createSession(roomname)
+		session := ydbInstance.createSessionWithAccess(roomname, isReadOnlySession(r.Context()))
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.setConn(wsConn)
 

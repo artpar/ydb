@@ -245,6 +245,63 @@ func TestReadUpdateMessageRejectsOversized(t *testing.T) {
 	}
 }
 
+func TestReadOnlySessionDropsSyncMessages(t *testing.T) {
+	store := newMemoryStore()
+	broadcaster := NewLocalBroadcaster(64)
+	ydbInstance := InitYdb(store, broadcaster, DefaultConfig())
+	defer ydbInstance.Close()
+
+	roomname := YjsRoomName("read-only-room")
+	s := ydbInstance.createSessionWithAccess(string(roomname), true)
+
+	for _, syncType := range []uint64{messageYjsSyncStep1, messageYjsSyncStep2, messageYjsUpdate} {
+		msgBuf := &bytes.Buffer{}
+		writeUvarint(msgBuf, messageSync)
+		writeUvarint(msgBuf, syncType)
+		writePayload(msgBuf, []byte("client-data"))
+
+		if err := ydbInstance.readMessage(msgBuf, s); err != nil {
+			t.Fatalf("sync type %d returned an error: %v", syncType, err)
+		}
+	}
+
+	size, _ := store.Size(roomname)
+	if size != 0 {
+		t.Fatalf("read-only sync messages should not be persisted, store size=%d", size)
+	}
+}
+
+func TestReadOnlySessionConsumesConcatenatedSyncMessages(t *testing.T) {
+	store := newMemoryStore()
+	broadcaster := NewLocalBroadcaster(64)
+	ydbInstance := InitYdb(store, broadcaster, DefaultConfig())
+	defer ydbInstance.Close()
+
+	roomname := YjsRoomName("read-only-concatenated-room")
+	s := ydbInstance.createSessionWithAccess(string(roomname), true)
+	msgBuf := &bytes.Buffer{}
+	for _, syncType := range []uint64{messageYjsSyncStep1, messageYjsUpdate, messageYjsSyncStep2} {
+		writeUvarint(msgBuf, messageSync)
+		writeUvarint(msgBuf, syncType)
+		writePayload(msgBuf, []byte("client-data"))
+	}
+
+	for msgBuf.Len() > 0 {
+		before := msgBuf.Len()
+		if err := ydbInstance.readMessage(msgBuf, s); err != nil {
+			t.Fatalf("read-only concatenated message returned an error: %v", err)
+		}
+		if msgBuf.Len() >= before {
+			t.Fatal("read-only message was not fully consumed")
+		}
+	}
+
+	size, _ := store.Size(roomname)
+	if size != 0 {
+		t.Fatalf("concatenated read-only messages should not be persisted, store size=%d", size)
+	}
+}
+
 func TestSubscribeRoomCatchup(t *testing.T) {
 	store := newMemoryStore()
 	broadcaster := NewLocalBroadcaster(64)

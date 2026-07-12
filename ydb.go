@@ -87,12 +87,16 @@ func (ydb *Ydb) getSession(sessionid uint64) *session {
 }
 
 func (ydb *Ydb) createSession(roomname string) *session {
+	return ydb.createSessionWithAccess(roomname, false)
+}
+
+func (ydb *Ydb) createSessionWithAccess(roomname string, readOnly bool) *session {
 	ydb.sessionsMux.Lock()
 	sessionid := ydb.genUint64()
 	if _, ok := ydb.sessions[sessionid]; ok {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
-	s := newSession(sessionid, roomname)
+	s := newSessionWithAccess(sessionid, roomname, readOnly)
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s
