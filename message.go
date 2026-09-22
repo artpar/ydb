@@ -13,7 +13,7 @@ const (
 	messageSync                    = 0
 	messageAwareness               = 1
 	messageConfirmation            = 2
-	messageSubConf                 = 3
+	messageQueryAwareness          = 3
 	messageHostUnconfirmedByClient = 4
 	messageConfirmedByHost         = 5
 )
@@ -38,6 +38,8 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 	case messageConfirmation:
 		debug("reading conf message")
 		err = readConfirmationMessage(m, session)
+	case messageQueryAwareness:
+		ydb.broadcaster.Publish(session.roomname, session.sessionid, createMessageQueryAwareness())
 	default:
 		debug(fmt.Sprintf("received unknown message type %d", messageType))
 	}
@@ -45,25 +47,98 @@ func (ydb *Ydb) readMessage(m message, session *session) (err error) {
 }
 
 func (ydb *Ydb) readSubMessage(m message, session *session) error {
-	subConfBuf := &bytes.Buffer{}
-	writeUvarint(subConfBuf, messageAwareness)
-	clientId, _ := binary.ReadUvarint(m)
-	clock, _ := binary.ReadUvarint(m)
-	var1, _ := binary.ReadUvarint(m)
-	var2, _ := binary.ReadUvarint(m)
-	writeUvarint(subConfBuf, clientId)
-	writeUvarint(subConfBuf, clock)
-	writeUvarint(subConfBuf, var1)
-	writeUvarint(subConfBuf, var2)
+	payload, err := readPayload(m)
+	if err != nil {
+		return err
+	}
+	if ydb.cfg.MaxMessageSize > 0 && int64(len(payload)) > ydb.cfg.MaxMessageSize {
+		return fmt.Errorf("awareness payload exceeds max message size (%d > %d)", len(payload), ydb.cfg.MaxMessageSize)
+	}
+	states, err := decodeAwarenessPayload(payload)
+	if err != nil {
+		return err
+	}
+	session.trackAwareness(states)
 
-	jsonString, _ := readString(m)
-	var clientState map[string]interface{}
-	json.Unmarshal([]byte(jsonString), &clientState)
-
-	writeString(subConfBuf, jsonString)
-
-	session.send(subConfBuf.Bytes())
+	message := &bytes.Buffer{}
+	if err := writeUvarint(message, messageAwareness); err != nil {
+		return err
+	}
+	if err := writePayload(message, payload); err != nil {
+		return err
+	}
+	ydb.broadcaster.Publish(session.roomname, session.sessionid, message.Bytes())
 	return nil
+}
+
+type awarenessState struct {
+	clientID uint64
+	clock    uint64
+	state    string
+}
+
+func decodeAwarenessPayload(payload []byte) ([]awarenessState, error) {
+	reader := bytes.NewReader(payload)
+	count, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil, err
+	}
+	states := make([]awarenessState, 0, count)
+	for i := uint64(0); i < count; i++ {
+		clientID, err := binary.ReadUvarint(reader)
+		if err != nil {
+			return nil, err
+		}
+		clock, err := binary.ReadUvarint(reader)
+		if err != nil {
+			return nil, err
+		}
+		state, err := readString(reader)
+		if err != nil {
+			return nil, err
+		}
+		if !json.Valid([]byte(state)) {
+			return nil, errors.New("invalid awareness state")
+		}
+		states = append(states, awarenessState{clientID: clientID, clock: clock, state: state})
+	}
+	if reader.Len() != 0 {
+		return nil, errors.New("invalid trailing awareness data")
+	}
+	return states, nil
+}
+
+func createAwarenessMessage(states []awarenessState) ([]byte, error) {
+	payload := &bytes.Buffer{}
+	if err := writeUvarint(payload, uint64(len(states))); err != nil {
+		return nil, err
+	}
+	for _, state := range states {
+		if err := writeUvarint(payload, state.clientID); err != nil {
+			return nil, err
+		}
+		if err := writeUvarint(payload, state.clock); err != nil {
+			return nil, err
+		}
+		if err := writeString(payload, state.state); err != nil {
+			return nil, err
+		}
+	}
+
+	message := &bytes.Buffer{}
+	if err := writeUvarint(message, messageAwareness); err != nil {
+		return nil, err
+	}
+	if err := writePayload(message, payload.Bytes()); err != nil {
+		return nil, err
+	}
+	return message.Bytes(), nil
+}
+
+func createMessageQueryAwareness() []byte {
+	message := &bytes.Buffer{}
+	_ = writeUvarint(message, messageQueryAwareness)
+	return message.Bytes()
 }
 
 func readConfirmationMessage(m message, session *session) (err error) {

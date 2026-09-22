@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 	"time"
 )
@@ -88,9 +89,17 @@ func TestClientOldApiProtocol(t *testing.T) {
 
 	c.UpdateRoom(YjsRoomName(roomname), []byte("old-api-data"))
 
-	msg, ok := receiver.recv(2 * time.Second)
-	if !ok {
-		t.Fatalf("receiver timed out")
+	var msg []byte
+	for {
+		var ok bool
+		msg, ok = receiver.recv(2 * time.Second)
+		if !ok {
+			t.Fatalf("receiver timed out")
+		}
+		messageType, _ := binary.ReadUvarint(bytes.NewReader(msg))
+		if messageType != messageQueryAwareness {
+			break
+		}
 	}
 
 	syncType, payload, err := parseSyncMessage(msg)

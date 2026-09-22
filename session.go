@@ -77,6 +77,7 @@ type session struct {
 	sessionid          uint64
 	roomname           YjsRoomName
 	readOnly           bool
+	awareness          map[uint64]uint64
 }
 
 func newSession(sessionid uint64, roomname string) *session {
@@ -88,7 +89,42 @@ func newSessionWithAccess(sessionid uint64, roomname string, readOnly bool) *ses
 		sessionid: sessionid,
 		roomname:  YjsRoomName(roomname),
 		readOnly:  readOnly,
+		awareness: make(map[uint64]uint64),
 	}
+}
+
+func (s *session) trackAwareness(states []awarenessState) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	if len(s.awareness) == 0 {
+		if len(states) != 1 || states[0].state == "null" {
+			return
+		}
+		s.awareness[states[0].clientID] = states[0].clock
+		return
+	}
+	for _, state := range states {
+		clock, exists := s.awareness[state.clientID]
+		if !exists || state.clock < clock {
+			continue
+		}
+		if state.state == "null" {
+			delete(s.awareness, state.clientID)
+			continue
+		}
+		s.awareness[state.clientID] = state.clock
+	}
+}
+
+func (s *session) takeAwarenessRemovals() []awarenessState {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	states := make([]awarenessState, 0, len(s.awareness))
+	for clientID, clock := range s.awareness {
+		states = append(states, awarenessState{clientID: clientID, clock: clock + 1, state: "null"})
+	}
+	clear(s.awareness)
+	return states
 }
 
 func (s *session) sendConfirmedByHost(roomname YjsRoomName, offset uint64) {
@@ -121,6 +157,12 @@ func (s *session) setConn(c conn) {
 }
 
 func (s *session) removeConn(ydb *Ydb) {
+	removals := s.takeAwarenessRemovals()
+	if len(removals) > 0 {
+		if message, err := createAwarenessMessage(removals); err == nil {
+			ydb.broadcaster.Publish(s.roomname, s.sessionid, message)
+		}
+	}
 	s.mux.Lock()
 	s.conn = nil
 	s.mux.Unlock()

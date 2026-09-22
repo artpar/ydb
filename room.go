@@ -100,6 +100,10 @@ func (ydb *Ydb) subscribeRoom(session *session, offset uint32) {
 		}
 	}
 
+	// Ask existing peers to announce their ephemeral awareness state to the
+	// newly subscribed session. The query itself is never persisted.
+	ydb.broadcaster.Publish(roomname, session.sessionid, createMessageQueryAwareness())
+
 	// Forward broadcast messages to session
 	go func() {
 		for msg := range broadcastCh {
