@@ -270,8 +270,7 @@ func (ydb *Ydb) readUpdateMessage(m message, session *session) error {
 		return nil
 	}
 
-	ydb.updateRoom(session.roomname, session, write.Bytes())
-	return nil
+	return ydb.updateRoom(session.roomname, session, write.Bytes())
 }
 
 func readString(m message) (string, error) {

@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -26,33 +27,29 @@ func (ydb *Ydb) newRoom() *room {
 }
 
 // updateRoom persists data to store, updates room offset, and broadcasts to subscribers.
-func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
+func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) error {
 	// Frame data for storage
 	pendingWrite := &bytes.Buffer{}
 	err := writePayload(pendingWrite, bs)
 	if err != nil {
-		log.Printf("Failed to create payload: %v", err)
-		return
+		return fmt.Errorf("frame room update: %w", err)
 	}
 
 	// Enforce max room size at core level (protects all Store implementations)
 	if ydb.cfg.MaxRoomSize > 0 {
 		currentSize, err := ydb.store.Size(roomname)
 		if err != nil {
-			log.Printf("Failed to check room size: %v", err)
-			return
+			return fmt.Errorf("%w: check room size: %v", ErrStoreWrite, err)
 		}
 		if currentSize+uint32(pendingWrite.Len()) > ydb.cfg.MaxRoomSize {
-			log.Printf("Room %s would exceed max size %d (current: %d, write: %d)", roomname, ydb.cfg.MaxRoomSize, currentSize, pendingWrite.Len())
-			return
+			return fmt.Errorf("room %s would exceed max size %d (current: %d, write: %d)", roomname, ydb.cfg.MaxRoomSize, currentSize, pendingWrite.Len())
 		}
 	}
 
 	// Persist outside room mutex — per-room store mutex handles concurrency
-	newOffset, err := ydb.store.Append(roomname, pendingWrite.Bytes())
+	newOffset, err := ydb.store.Append(session.context, roomname, pendingWrite.Bytes())
 	if err != nil {
-		log.Printf("Failed to append to store: %v", err)
-		return
+		return fmt.Errorf("%w: append room update: %v", ErrStoreWrite, err)
 	}
 
 	// Update cached offset under room mutex (fast, no I/O)
@@ -64,6 +61,7 @@ func (ydb *Ydb) updateRoom(roomname YjsRoomName, session *session, bs []byte) {
 
 	// Fan out to other subscribers
 	ydb.broadcaster.Publish(roomname, session.sessionid, bs)
+	return nil
 }
 
 // subscribeRoom subscribes a session to a room, catching up from the store first.

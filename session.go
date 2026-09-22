@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"context"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -77,18 +78,24 @@ type session struct {
 	sessionid          uint64
 	roomname           YjsRoomName
 	readOnly           bool
+	context            context.Context
 	awareness          map[uint64]uint64
 }
 
 func newSession(sessionid uint64, roomname string) *session {
-	return newSessionWithAccess(sessionid, roomname, false)
+	return newSessionWithContext(sessionid, roomname, false, context.Background())
 }
 
 func newSessionWithAccess(sessionid uint64, roomname string, readOnly bool) *session {
+	return newSessionWithContext(sessionid, roomname, readOnly, context.Background())
+}
+
+func newSessionWithContext(sessionid uint64, roomname string, readOnly bool, ctx context.Context) *session {
 	return &session{
 		sessionid: sessionid,
 		roomname:  YjsRoomName(roomname),
 		readOnly:  readOnly,
+		context:   context.WithoutCancel(ctx),
 		awareness: make(map[uint64]uint64),
 	}
 }

@@ -2,7 +2,9 @@ package ydb
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -70,7 +72,18 @@ func (wsConn *wsConn) readPump() {
 		for {
 			err := wsConn.ydb.readMessage(mbuffer, wsConn.session)
 			if err != nil {
-				break
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				closeCode := websocket.CloseProtocolError
+				message := "invalid YJS message"
+				if errors.Is(err, ErrStoreWrite) {
+					closeCode = websocket.CloseInternalServerErr
+					message = "failed to persist update"
+				}
+				_ = wsConn.conn.WriteControl(websocket.CloseMessage,
+					websocket.FormatCloseMessage(closeCode, message), time.Now().Add(writeWait))
+				return
 			}
 		}
 	}
@@ -132,7 +145,7 @@ func YdbWsConnectionHandler(ydbInstance *Ydb) func(http.ResponseWriter, *http.Re
 			return
 		}
 
-		session := ydbInstance.createSessionWithAccess(roomname, isReadOnlySession(r.Context()))
+		session := ydbInstance.createSessionWithContext(roomname, isReadOnlySession(r.Context()), r.Context())
 		wsConn := newWsConn(session, conn, ydbInstance)
 		session.setConn(wsConn)
 

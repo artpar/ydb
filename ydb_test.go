@@ -2,6 +2,8 @@ package ydb
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -9,6 +11,16 @@ import (
 	"testing"
 	"time"
 )
+
+type failingContextStore struct {
+	*MemoryStore
+	context context.Context
+}
+
+func (store *failingContextStore) Append(ctx context.Context, _ YjsRoomName, _ []byte) (uint32, error) {
+	store.context = ctx
+	return 0, errors.New("write failed")
+}
 
 func TestGetOrCreateRoomConcurrent(t *testing.T) {
 	store := newMemoryStore()
@@ -176,6 +188,36 @@ func TestUpdateRoomPersistsToStore(t *testing.T) {
 	}
 	if !bytes.Equal(storedMsg, msgBuf.Bytes()) {
 		t.Fatalf("stored message doesn't match: got %v, want %v", storedMsg, msgBuf.Bytes())
+	}
+}
+
+func TestUpdateRoomPassesSessionContextAndDoesNotBroadcastFailedWrites(t *testing.T) {
+	store := &failingContextStore{MemoryStore: newMemoryStore()}
+	broadcaster := NewLocalBroadcaster(4)
+	ydbInstance := InitYdb(store, broadcaster)
+	defer ydbInstance.Close()
+
+	type contextKey string
+	ctx := context.WithValue(context.Background(), contextKey("actor"), "writer")
+	room := YjsRoomName("failed-room")
+	session := ydbInstance.createSessionWithContext(string(room), false, ctx)
+	receiver, err := broadcaster.Subscribe(room, 99)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer broadcaster.Unsubscribe(room, 99)
+
+	err = ydbInstance.updateRoom(room, session, []byte("update"))
+	if !errors.Is(err, ErrStoreWrite) {
+		t.Fatalf("updateRoom error = %v, want ErrStoreWrite", err)
+	}
+	if store.context == nil || store.context.Value(contextKey("actor")) != "writer" {
+		t.Fatal("store did not receive the websocket session context")
+	}
+	select {
+	case message := <-receiver:
+		t.Fatalf("failed update was broadcast: %x", message)
+	default:
 	}
 }
 

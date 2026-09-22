@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -196,7 +197,7 @@ func BenchmarkDiskStoreAppend(b *testing.B) {
 	b.ResetTimer()
 	for i := range b.N {
 		_ = i
-		store.Append(room, data)
+		store.Append(context.Background(), room, data)
 	}
 }
 
@@ -210,7 +211,7 @@ func BenchmarkDiskStoreAppendParallel(b *testing.B) {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for pb.Next() {
 			room := YjsRoomName("bench-room-" + strconv.Itoa(r.Intn(100)))
-			store.Append(room, data)
+			store.Append(context.Background(), room, data)
 		}
 	})
 }

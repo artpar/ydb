@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -13,7 +14,7 @@ func TestDiskStoreAppendAndRead(t *testing.T) {
 	room := YjsRoomName("testroom")
 	data := []byte("hello world")
 
-	newOffset, err := store.Append(room, data)
+	newOffset, err := store.Append(context.Background(), room, data)
 	if err != nil {
 		t.Fatalf("Append failed: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestDiskStoreReadFromOffset(t *testing.T) {
 	store := NewDiskStore(dir)
 
 	room := YjsRoomName("testroom")
-	store.Append(room, []byte("AAABBB"))
+	store.Append(context.Background(), room, []byte("AAABBB"))
 
 	readData, _, err := store.ReadFrom(room, 3)
 	if err != nil {
@@ -60,13 +61,13 @@ func TestDiskStoreSizeTracking(t *testing.T) {
 		t.Fatalf("expected size 0 for new room, got %d", size)
 	}
 
-	store.Append(room, []byte("abc"))
+	store.Append(context.Background(), room, []byte("abc"))
 	size, _ = store.Size(room)
 	if size != 3 {
 		t.Fatalf("expected size 3, got %d", size)
 	}
 
-	store.Append(room, []byte("defgh"))
+	store.Append(context.Background(), room, []byte("defgh"))
 	size, _ = store.Size(room)
 	if size != 8 {
 		t.Fatalf("expected size 8, got %d", size)
@@ -79,18 +80,18 @@ func TestDiskStoreMaxRoomSize(t *testing.T) {
 
 	room := YjsRoomName("testroom")
 
-	_, err := store.Append(room, []byte("12345"))
+	_, err := store.Append(context.Background(), room, []byte("12345"))
 	if err != nil {
 		t.Fatalf("first append should succeed: %v", err)
 	}
 
-	_, err = store.Append(room, []byte("123456"))
+	_, err = store.Append(context.Background(), room, []byte("123456"))
 	if err == nil {
 		t.Fatalf("second append should fail (exceeds max size)")
 	}
 
 	// Exactly at limit should succeed
-	_, err = store.Append(room, []byte("12345"))
+	_, err = store.Append(context.Background(), room, []byte("12345"))
 	if err != nil {
 		t.Fatalf("append to exactly max size should succeed: %v", err)
 	}
@@ -103,13 +104,13 @@ func TestDiskStoreMaxRoomSizeFirstWrite(t *testing.T) {
 	room := YjsRoomName("newroom")
 
 	// First write to a non-existent file should also be capped
-	_, err := store.Append(room, []byte("this-exceeds-ten-bytes"))
+	_, err := store.Append(context.Background(), room, []byte("this-exceeds-ten-bytes"))
 	if err == nil {
 		t.Fatalf("first write exceeding max size should fail")
 	}
 
 	// First write within limit should succeed
-	_, err = store.Append(room, []byte("ok"))
+	_, err = store.Append(context.Background(), room, []byte("ok"))
 	if err != nil {
 		t.Fatalf("first write within limit should succeed: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestDiskStoreConcurrentSameRoom(t *testing.T) {
 	for i := range n {
 		go func(i int) {
 			defer wg.Done()
-			store.Append(room, []byte(fmt.Sprintf("data-%03d|", i)))
+			store.Append(context.Background(), room, []byte(fmt.Sprintf("data-%03d|", i)))
 		}(i)
 	}
 	wg.Wait()
@@ -157,7 +158,7 @@ func TestDiskStoreConcurrentDifferentRooms(t *testing.T) {
 			defer wg.Done()
 			room := YjsRoomName(fmt.Sprintf("room-%d", i))
 			data := []byte(fmt.Sprintf("data-%d", i))
-			store.Append(room, data)
+			store.Append(context.Background(), room, data)
 		}(i)
 	}
 	wg.Wait()
@@ -222,7 +223,7 @@ func TestDiskStoreInitialContentProvider(t *testing.T) {
 	}
 
 	// Append after initial content
-	store.Append(room, []byte("-appended"))
+	store.Append(context.Background(), room, []byte("-appended"))
 	data, _, _ = store.ReadFrom(room, 0)
 	if string(data) != "provided-myroom-appended" {
 		t.Fatalf("expected %q, got %q", "provided-myroom-appended", data)

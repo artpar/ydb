@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"context"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -91,12 +92,16 @@ func (ydb *Ydb) createSession(roomname string) *session {
 }
 
 func (ydb *Ydb) createSessionWithAccess(roomname string, readOnly bool) *session {
+	return ydb.createSessionWithContext(roomname, readOnly, context.Background())
+}
+
+func (ydb *Ydb) createSessionWithContext(roomname string, readOnly bool, ctx context.Context) *session {
 	ydb.sessionsMux.Lock()
 	sessionid := ydb.genUint64()
 	if _, ok := ydb.sessions[sessionid]; ok {
 		panic("Generated the same session id twice! (this is a security vulnerability)")
 	}
-	s := newSessionWithAccess(sessionid, roomname, readOnly)
+	s := newSessionWithContext(sessionid, roomname, readOnly, ctx)
 	ydb.sessions[sessionid] = s
 	ydb.sessionsMux.Unlock()
 	return s

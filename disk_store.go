@@ -1,6 +1,7 @@
 package ydb
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func (ds *DiskStore) ensureInitialContent(room YjsRoomName) {
 	}
 }
 
-func (ds *DiskStore) Append(room YjsRoomName, data []byte) (uint32, error) {
+func (ds *DiskStore) Append(_ context.Context, room YjsRoomName, data []byte) (uint32, error) {
 	mu := ds.roomMutex(room)
 	mu.Lock()
 	defer mu.Unlock()

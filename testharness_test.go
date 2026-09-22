@@ -2,6 +2,7 @@ package ydb
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net/http"
@@ -26,7 +27,7 @@ func newMemoryStore() *MemoryStore {
 	return &MemoryStore{data: make(map[YjsRoomName][]byte)}
 }
 
-func (ms *MemoryStore) Append(room YjsRoomName, data []byte) (uint32, error) {
+func (ms *MemoryStore) Append(_ context.Context, room YjsRoomName, data []byte) (uint32, error) {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 
